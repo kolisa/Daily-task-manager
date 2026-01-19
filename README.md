@@ -57,6 +57,27 @@ A comprehensive productivity system for Senior Software Engineers and Technical 
 - Personalized tips to improve productivity
 - Celebration when you're excelling!
 
+### 💾 Smart Storage Management
+- **Real-time Storage Monitoring**: See usage percentage in header
+- **Auto-Archive**: Completed tasks older than 7 days automatically archived
+- **Manual Archive**: Move completed tasks to archive anytime
+- **Export/Import**: Full data backup and restore
+- **Selective Cleanup**: Delete old archived tasks (90/180+ days)
+- **Storage Breakdown**: See space used by active vs archived tasks
+- **Warning System**: Alert when approaching 80% storage limit
+
+LocalStorage typically has 5-10MB limit per domain. The app tracks your usage and provides tools to manage space efficiently.
+
+### 📋 Work Summary & Changelog
+- **Multiple Formats**: Standup, Markdown, JIRA, Email, Detailed Report
+- **Flexible Date Ranges**: Today, Yesterday, This Week, Last Week, This Month
+- **One-Click Copy**: Copy formatted summary to clipboard
+- **Grouped by Organization**: Tasks organized by Web Africa, LexisNexis, etc.
+- **Time Tracking**: Shows time spent per task and organization
+- **7-Day Visibility**: Completed tasks visible for a week before archiving
+
+Perfect for daily standups, weekly status reports, manager updates, and sprint retrospectives!
+
 ### 🎨 Additional Features
 - 📊 Task type breakdown visualization
 - ⚠️ **Stale Task Detection** - Highlights tasks open for 2+ days
@@ -538,6 +559,367 @@ const ORGANIZATIONS = [
   { value: 'sideproject', label: 'Side Project', icon: Coffee, color: 'purple', type: 'personal' },
 ];
 ```
+
+## Storage Management 💾
+
+LocalStorage has a limit of 5-10MB per domain. This app includes smart storage management to prevent data loss.
+
+## Work Summary & Changelog 📋
+
+Generate professional work summaries in multiple formats - perfect for standups, status reports, and manager updates!
+
+### How It Works
+
+**7-Day Visibility Window:**
+- Completed tasks visible for 7 days
+- Auto-archived after 7 days (not deleted!)
+- Generate summaries anytime within the week
+- Perfect for weekly retrospectives
+
+**Access:**
+Click the **📋 Work Summary** button in the header
+
+### Available Formats
+
+**1. Daily Standup (Simple)**
+```
+📊 Daily Standup - This Week
+⏱️ Total Time: 28h 15m 30s
+
+Web Africa:
+  ✨ Implement password reset feature (6h 30m)
+  🐛 Fix authentication timeout bug (2h 15m)
+  🔧 Code review for API changes (1h 45m)
+
+LexisNexis:
+  ✨ Add search pagination (4h 20m)
+  🐛 Fix memory leak in parser (3h 10m)
+
+Bhukuveni:
+  📚 Complete React course module 4 (2h 30m)
+```
+
+**Use Case:** Daily standup meetings, quick team updates
+
+**2. Markdown Format**
+```markdown
+# Work Summary - This Week
+
+**Total Time:** 28h 15m 30s
+
+## Web Africa (10h 30m)
+
+- **Implement password reset feature**
+  - Type: Feature Development
+  - Time: 6h 30m
+  - Quality: Excellent
+
+- **Fix authentication timeout bug**
+  - Type: Bug Fix
+  - Time: 2h 15m
+  - Quality: Good
+```
+
+**Use Case:** GitHub updates, Notion documentation, technical wikis
+
+**3. JIRA Format**
+```
+h2. Work Log - This Week
+
+*Total Time:* 28h 15m 30s
+
+h3. Web Africa
+
+* (+) Implement password reset feature - 6h 30m
+* (x) Fix authentication timeout bug - 2h 15m
+* (!) Code review for API changes - 1h 45m
+```
+
+**Use Case:** JIRA ticket updates, Confluence pages, issue tracking
+
+**4. Email Format**
+```
+Subject: Work Summary - This Week
+
+Hi Team,
+
+Here's my work summary for this week:
+
+Total Hours: 28h 15m 30s
+
+Web Africa (10h 30m):
+  • Implement password reset feature
+  • Fix authentication timeout bug
+  • Code review for API changes
+
+LexisNexis (8h 45m):
+  • Add search pagination
+  • Fix memory leak in parser
+
+Best regards
+```
+
+**Use Case:** Weekly manager updates, client reports, email summaries
+
+**5. Detailed Report**
+```
+DETAILED WORK REPORT - This Week
+============================================================
+
+Summary:
+  Total Time: 28h 15m 30s
+  Features: 5 | Bugs: 3 | Support: 4 | Learning: 2
+  Total Tasks: 14
+
+WEB AFRICA
+------------------------------------------------------------
+Time Spent: 10h 30m
+Tasks Completed: 6
+
+1. Implement password reset feature
+   Type: Feature Development | Size: L (4-8h)
+   Time: 6h 30m (Est: 6h, Variance: +8%)
+   Quality: Excellent - First try, no rework
+
+2. Fix authentication timeout bug
+   Type: Bug Fix | Size: S (1-2h)
+   Time: 2h 15m (Est: 1.5h, Variance: +50%)
+   Quality: Good - Minor revisions
+```
+
+**Use Case:** Sprint retrospectives, performance reviews, detailed analysis
+
+### Date Range Options
+
+- **Today**: Tasks completed today
+- **Yesterday**: Tasks completed yesterday (for next-day standup)
+- **This Week**: Sunday to now
+- **Last Week**: Previous Sunday to Saturday
+- **This Month**: Current month to date
+
+### One-Click Copy
+
+All formats have a **📋 Copy to Clipboard** button:
+1. Select format and date range
+2. Preview appears instantly
+3. Click copy button
+4. Paste anywhere (Slack, email, JIRA, etc.)
+
+### Example Workflows
+
+**Daily Standup (Every Morning):**
+```
+1. Open app
+2. Click "📋 Work Summary"
+3. Select "Daily Standup" format
+4. Select "Yesterday" date range
+5. Copy and paste into Slack standup channel
+```
+
+**Weekly Status Report (Friday EOD):**
+```
+1. Click "📋 Work Summary"
+2. Select "Email" format
+3. Select "This Week" date range
+4. Copy and paste into email to manager
+5. Hits send feeling accomplished!
+```
+
+**Sprint Retrospective (End of Sprint):**
+```
+1. Click "📋 Work Summary"
+2. Select "Detailed Report" format
+3. Select "Last Week" or "This Month"
+4. Copy for retrospective discussion
+5. Review estimation accuracy
+6. Identify improvement areas
+```
+
+**Client Status Update (Weekly):**
+```
+1. Click "📋 Work Summary"
+2. Select "Markdown" format
+3. Select "This Week" date range
+4. Filter shows only LexisNexis tasks
+5. Professional update ready!
+```
+
+### Smart Features
+
+**Grouped by Organization:**
+- Tasks automatically grouped
+- Time totals per organization
+- Easy to see work distribution
+
+**Time Tracking Included:**
+- Actual time spent per task
+- Total time per organization
+- Overall time for period
+
+**Quality Indicators:**
+- Shows quality ratings (if rated)
+- Estimation variance shown
+- Task type distribution
+
+**Visual Summary Cards:**
+- Total tasks completed
+- Total time spent
+- Number of organizations
+
+### Pro Tips
+
+**Best Time to Generate:**
+- **Daily Standup**: Generate in the morning for yesterday
+- **Weekly Report**: Generate Friday afternoon for the week
+- **Month-End**: Generate on last day of month
+
+**For Maximum Impact:**
+- Rate task quality before generating (better reports)
+- Use consistent task descriptions (better readability)
+- Generate right before archiving (capture everything)
+
+**Format Selection Guide:**
+- **Standup**: Quick verbal update needed
+- **Markdown**: Technical documentation
+- **JIRA**: Updating tickets/issues
+- **Email**: Formal communication
+- **Detailed**: Performance review, analysis
+
+## Storage Management 💾
+
+### How Storage Works
+
+**What's Stored:**
+- Active tasks (visible in main view)
+- Archived tasks (completed, older than 30 days)
+- All task metadata (time tracking, quality ratings, sessions)
+- Organization assignments
+- User preferences
+
+**Storage Limits:**
+- Conservative estimate: 5MB
+- Typical task: ~500 bytes
+- Can store ~10,000 tasks before issues
+- App monitors usage in real-time
+
+### Auto-Archive Feature
+
+**Automatic Process:**
+- Runs when app loads
+- Completed tasks older than 7 days → moved to archive
+- Archive is hidden from main view
+- Archive IS included in productivity metrics
+- Saves space without losing data
+
+**Why 7 Days?**
+- Perfect for weekly status reports
+- Capture full week of work
+- Generate Friday summary before archiving
+- Balance between visibility and storage
+
+**Benefits:**
+- Main task list stays fast and responsive
+- Historical data preserved for analytics
+- Automatic space management
+- No manual intervention needed
+
+### Storage Manager Tools
+
+Click the **💾 Storage** button (pulses orange when >80% full) to access:
+
+**1. Storage Monitor**
+- Real-time usage percentage
+- Visual progress bar (green/orange/red)
+- Breakdown: Active vs Archived tasks
+- File size per category
+
+**2. Export/Import Data**
+- **Export**: Download JSON backup of everything
+  - All active tasks
+  - All archived tasks
+  - Metadata and settings
+  - Use before any cleanup operation!
+- **Import**: Restore from backup file
+  - Merges with existing data
+  - Preserves all task details
+
+**3. Archive Management**
+- **Archive All Completed**: Manual archive of done tasks
+- **Clear Archive (90+ days)**: Delete tasks older than 90 days
+- **Clear Archive (180+ days)**: Delete tasks older than 180 days
+- **Clear All Archive**: Delete entire archive (use with caution!)
+
+### Best Practices
+
+**Weekly Maintenance:**
+```
+1. Check storage usage (should be <60%)
+2. If >60%: Export backup first
+3. Archive completed tasks manually
+4. Review old archived tasks
+5. Clear archive (90+ days) if needed
+```
+
+**Before Deleting Anything:**
+```
+1. ALWAYS export data first!
+2. Store backup file safely (Google Drive, etc.)
+3. Verify backup downloaded successfully
+4. Then proceed with cleanup
+```
+
+**If Storage Hits 80%:**
+```
+1. Export backup immediately
+2. Archive all completed tasks
+3. Clear old archived tasks (90+ days)
+4. Should free up 40-60% space
+```
+
+**If Storage Hits 95%:**
+```
+1. CRITICAL: Export backup NOW
+2. Clear archive (90+ days)
+3. Consider clearing archive (30+ days)
+4. Contact support if issues persist
+```
+
+### Storage Usage Examples
+
+**Light User** (50 tasks/month):
+- Monthly: ~25KB
+- Yearly: ~300KB
+- Safe for 15+ years
+
+**Heavy User** (200 tasks/month):
+- Monthly: ~100KB
+- Yearly: ~1.2MB
+- Need cleanup after 3-4 years
+
+**Power User** (500 tasks/month):
+- Monthly: ~250KB
+- Yearly: ~3MB
+- Need cleanup annually
+
+### Data Portability
+
+**Export Format:**
+Standard JSON file containing:
+```json
+{
+  "tasks": [...],
+  "archivedTasks": [...],
+  "exportDate": "2026-01-19",
+  "version": "2.0"
+}
+```
+
+**Use Cases:**
+- Transfer between devices
+- Long-term archival
+- Data analysis in Excel/Python
+- Backup before browser reset
+- Migration to future versions
 
 ## Browser Compatibility
 

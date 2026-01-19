@@ -35,25 +35,55 @@ const ORGANIZATIONS = [
 
 export default function DailyTaskManager() {
   const [tasks, setTasks] = useState([]);
+  const [archivedTasks, setArchivedTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
   const [newTaskType, setNewTaskType] = useState('feature');
   const [newTaskSize, setNewTaskSize] = useState('m');
   const [newTaskOrg, setNewTaskOrg] = useState('webafrica');
   const [filter, setFilter] = useState('all');
-  const [orgFilter, setOrgFilter] = useState('all'); // Filter by organization
+  const [orgFilter, setOrgFilter] = useState('all');
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [morningReminderTime, setMorningReminderTime] = useState('09:00');
   const [showProductivity, setShowProductivity] = useState(false);
   const [selectedTaskForRating, setSelectedTaskForRating] = useState(null);
+  const [showStorageManager, setShowStorageManager] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
+  const [changelogFormat, setChangelogFormat] = useState('standup');
+  const [changelogDateRange, setChangelogDateRange] = useState('week');
+  const [storageInfo, setStorageInfo] = useState({ used: 0, limit: 5000000, percentage: 0 });
   const timerRef = useRef(null);
   const notificationCheckRef = useRef(null);
+
+  // Calculate storage usage
+  const calculateStorageUsage = () => {
+    const tasksSize = new Blob([JSON.stringify(tasks)]).size;
+    const archivedSize = new Blob([JSON.stringify(archivedTasks)]).size;
+    const totalSize = tasksSize + archivedSize;
+    const limit = 5000000; // 5MB conservative estimate
+    const percentage = (totalSize / limit) * 100;
+
+    return {
+      used: totalSize,
+      limit: limit,
+      percentage: percentage,
+      tasksSize: tasksSize,
+      archivedSize: archivedSize,
+      taskCount: tasks.length,
+      archivedCount: archivedTasks.length
+    };
+  };
 
   // Load tasks from localStorage on mount
   useEffect(() => {
     const savedTasks = localStorage.getItem('dailyTasks');
     if (savedTasks) {
       setTasks(JSON.parse(savedTasks));
+    }
+
+    const savedArchivedTasks = localStorage.getItem('archivedTasks');
+    if (savedArchivedTasks) {
+      setArchivedTasks(JSON.parse(savedArchivedTasks));
     }
 
     const savedReminderTime = localStorage.getItem('morningReminderTime');
@@ -65,12 +95,22 @@ export default function DailyTaskManager() {
     if ('Notification' in window) {
       setNotificationsEnabled(Notification.permission === 'granted');
     }
+
+    // Auto-archive old completed tasks on load
+    autoArchiveOldTasks();
   }, []);
 
   // Save tasks to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('dailyTasks', JSON.stringify(tasks));
+    setStorageInfo(calculateStorageUsage());
   }, [tasks]);
+
+  // Save archived tasks to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('archivedTasks', JSON.stringify(archivedTasks));
+    setStorageInfo(calculateStorageUsage());
+  }, [archivedTasks]);
 
   // Save reminder time
   useEffect(() => {
@@ -211,6 +251,351 @@ export default function DailyTaskManager() {
       task.id === taskId ? { ...task, qualityRating: rating } : task
     ));
     setSelectedTaskForRating(null);
+  };
+
+  // Storage Management Functions
+  const autoArchiveOldTasks = () => {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.setDate(now.getDate() - 7));
+    
+    const tasksToArchive = tasks.filter(task => {
+      if (!task.completed) return false;
+      const completedDate = new Date(task.completedAt || task.createdAt);
+      return completedDate < sevenDaysAgo;
+    });
+
+    if (tasksToArchive.length > 0) {
+      setArchivedTasks([...archivedTasks, ...tasksToArchive]);
+      setTasks(tasks.filter(task => !tasksToArchive.find(t => t.id === task.id)));
+    }
+  };
+
+  const manualArchiveCompleted = () => {
+    const completedTasks = tasks.filter(t => t.completed);
+    if (completedTasks.length > 0) {
+      setArchivedTasks([...archivedTasks, ...completedTasks]);
+      setTasks(tasks.filter(t => !t.completed));
+    }
+  };
+
+  const exportData = () => {
+    const data = {
+      tasks: tasks,
+      archivedTasks: archivedTasks,
+      exportDate: new Date().toISOString(),
+      version: '2.0'
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `task-manager-backup-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const importData = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (data.tasks) setTasks(data.tasks);
+          if (data.archivedTasks) setArchivedTasks(data.archivedTasks);
+          alert('Data imported successfully!');
+        } catch (error) {
+          alert('Error importing data. Please check the file format.');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const clearArchivedTasks = () => {
+    if (confirm(`This will permanently delete ${archivedTasks.length} archived tasks. Continue?`)) {
+      setArchivedTasks([]);
+      localStorage.removeItem('archivedTasks');
+    }
+  };
+
+  const clearOldArchivedTasks = (daysOld) => {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+    
+    const filtered = archivedTasks.filter(task => {
+      const taskDate = new Date(task.completedAt || task.createdAt);
+      return taskDate >= cutoffDate;
+    });
+    
+    const removed = archivedTasks.length - filtered.length;
+    if (removed > 0) {
+      setArchivedTasks(filtered);
+      alert(`Removed ${removed} tasks older than ${daysOld} days from archive.`);
+    } else {
+      alert('No tasks older than the specified period found.');
+    }
+  };
+
+  const formatBytes = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  // Changelog/Summary Generation Functions
+  const getTasksForChangelog = (dateRange) => {
+    const now = new Date();
+    let startDate;
+
+    switch(dateRange) {
+      case 'today':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case 'yesterday':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        return tasks.filter(t => {
+          if (!t.completed || !t.completedAt) return false;
+          const completedDate = new Date(t.completedAt);
+          return completedDate >= startDate && completedDate < endDate;
+        });
+      case 'week':
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - now.getDay()); // Sunday
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'last-week':
+        const lastSunday = new Date(now);
+        lastSunday.setDate(now.getDate() - now.getDay() - 7);
+        lastSunday.setHours(0, 0, 0, 0);
+        const thisSunday = new Date(now);
+        thisSunday.setDate(now.getDate() - now.getDay());
+        thisSunday.setHours(0, 0, 0, 0);
+        return tasks.filter(t => {
+          if (!t.completed || !t.completedAt) return false;
+          const completedDate = new Date(t.completedAt);
+          return completedDate >= lastSunday && completedDate < thisSunday;
+        });
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      default:
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - 7);
+    }
+
+    return tasks.filter(t => {
+      if (!t.completed || !t.completedAt) return false;
+      const completedDate = new Date(t.completedAt);
+      return completedDate >= startDate;
+    });
+  };
+
+  const generateChangelog = (format, dateRange) => {
+    const changelogTasks = getTasksForChangelog(dateRange);
+    const dateRangeLabel = {
+      'today': 'Today',
+      'yesterday': 'Yesterday',
+      'week': 'This Week',
+      'last-week': 'Last Week',
+      'month': 'This Month'
+    }[dateRange] || 'This Week';
+
+    // Group by organization
+    const tasksByOrg = {};
+    changelogTasks.forEach(task => {
+      const org = task.organization || 'unassigned';
+      if (!tasksByOrg[org]) tasksByOrg[org] = [];
+      tasksByOrg[org].push(task);
+    });
+
+    const totalTime = changelogTasks.reduce((sum, t) => sum + getElapsedTime(t), 0);
+
+    switch(format) {
+      case 'standup':
+        return generateStandupFormat(tasksByOrg, dateRangeLabel, totalTime);
+      case 'markdown':
+        return generateMarkdownFormat(tasksByOrg, dateRangeLabel, totalTime);
+      case 'jira':
+        return generateJiraFormat(tasksByOrg, dateRangeLabel, totalTime);
+      case 'email':
+        return generateEmailFormat(tasksByOrg, dateRangeLabel, totalTime);
+      case 'detailed':
+        return generateDetailedFormat(tasksByOrg, dateRangeLabel, totalTime);
+      default:
+        return generateStandupFormat(tasksByOrg, dateRangeLabel, totalTime);
+    }
+  };
+
+  const generateStandupFormat = (tasksByOrg, dateRange, totalTime) => {
+    let output = `📊 Daily Standup - ${dateRange}\n`;
+    output += `⏱️ Total Time: ${formatTime(totalTime)}\n\n`;
+
+    Object.keys(tasksByOrg).forEach(orgKey => {
+      const orgInfo = getOrgInfo(orgKey);
+      const orgTasks = tasksByOrg[orgKey];
+      
+      output += `${orgInfo.label}:\n`;
+      orgTasks.forEach(task => {
+        const typeIcon = {
+          'feature': '✨',
+          'bug': '🐛',
+          'support': '🔧',
+          'learning': '📚'
+        }[task.type] || '•';
+        
+        output += `  ${typeIcon} ${task.text} (${formatTime(getElapsedTime(task))})\n`;
+      });
+      output += '\n';
+    });
+
+    return output.trim();
+  };
+
+  const generateMarkdownFormat = (tasksByOrg, dateRange, totalTime) => {
+    let output = `# Work Summary - ${dateRange}\n\n`;
+    output += `**Total Time:** ${formatTime(totalTime)}\n\n`;
+
+    Object.keys(tasksByOrg).forEach(orgKey => {
+      const orgInfo = getOrgInfo(orgKey);
+      const orgTasks = tasksByOrg[orgKey];
+      const orgTime = orgTasks.reduce((sum, t) => sum + getElapsedTime(t), 0);
+      
+      output += `## ${orgInfo.label} (${formatTime(orgTime)})\n\n`;
+      
+      orgTasks.forEach(task => {
+        const typeLabel = TASK_TYPES.find(t => t.value === task.type)?.label || 'Task';
+        output += `- **${task.text}**\n`;
+        output += `  - Type: ${typeLabel}\n`;
+        output += `  - Time: ${formatTime(getElapsedTime(task))}\n`;
+        if (task.qualityRating && task.qualityRating !== 'unrated') {
+          const rating = QUALITY_RATINGS.find(r => r.value === task.qualityRating);
+          output += `  - Quality: ${rating?.label.split(' -')[0] || 'N/A'}\n`;
+        }
+        output += '\n';
+      });
+    });
+
+    return output.trim();
+  };
+
+  const generateJiraFormat = (tasksByOrg, dateRange, totalTime) => {
+    let output = `h2. Work Log - ${dateRange}\n\n`;
+    output += `*Total Time:* ${formatTime(totalTime)}\n\n`;
+
+    Object.keys(tasksByOrg).forEach(orgKey => {
+      const orgInfo = getOrgInfo(orgKey);
+      const orgTasks = tasksByOrg[orgKey];
+      
+      output += `h3. ${orgInfo.label}\n\n`;
+      
+      orgTasks.forEach(task => {
+        const typeIcon = {
+          'feature': '(+)',
+          'bug': '(x)',
+          'support': '(!)',
+          'learning': '(i)'
+        }[task.type] || '*';
+        
+        output += `* ${typeIcon} ${task.text} - ${formatTime(getElapsedTime(task))}\n`;
+      });
+      output += '\n';
+    });
+
+    return output.trim();
+  };
+
+  const generateEmailFormat = (tasksByOrg, dateRange, totalTime) => {
+    let output = `Subject: Work Summary - ${dateRange}\n\n`;
+    output += `Hi Team,\n\nHere's my work summary for ${dateRange.toLowerCase()}:\n\n`;
+    output += `Total Hours: ${formatTime(totalTime)}\n\n`;
+
+    Object.keys(tasksByOrg).forEach(orgKey => {
+      const orgInfo = getOrgInfo(orgKey);
+      const orgTasks = tasksByOrg[orgKey];
+      const orgTime = orgTasks.reduce((sum, t) => sum + getElapsedTime(t), 0);
+      
+      output += `${orgInfo.label} (${formatTime(orgTime)}):\n`;
+      
+      orgTasks.forEach(task => {
+        output += `  • ${task.text}\n`;
+      });
+      output += '\n';
+    });
+
+    output += 'Best regards';
+
+    return output.trim();
+  };
+
+  const generateDetailedFormat = (tasksByOrg, dateRange, totalTime) => {
+    let output = `DETAILED WORK REPORT - ${dateRange}\n`;
+    output += `${'='.repeat(60)}\n\n`;
+    output += `Summary:\n`;
+    output += `  Total Time: ${formatTime(totalTime)}\n`;
+    
+    const allTasks = Object.values(tasksByOrg).flat();
+    const byType = {
+      feature: allTasks.filter(t => t.type === 'feature').length,
+      bug: allTasks.filter(t => t.type === 'bug').length,
+      support: allTasks.filter(t => t.type === 'support').length,
+      learning: allTasks.filter(t => t.type === 'learning').length
+    };
+    
+    output += `  Features: ${byType.feature} | Bugs: ${byType.bug} | Support: ${byType.support} | Learning: ${byType.learning}\n`;
+    output += `  Total Tasks: ${allTasks.length}\n\n`;
+
+    Object.keys(tasksByOrg).forEach(orgKey => {
+      const orgInfo = getOrgInfo(orgKey);
+      const orgTasks = tasksByOrg[orgKey];
+      const orgTime = orgTasks.reduce((sum, t) => sum + getElapsedTime(t), 0);
+      
+      output += `${orgInfo.label.toUpperCase()}\n`;
+      output += `${'-'.repeat(60)}\n`;
+      output += `Time Spent: ${formatTime(orgTime)}\n`;
+      output += `Tasks Completed: ${orgTasks.length}\n\n`;
+      
+      orgTasks.forEach((task, index) => {
+        const typeLabel = TASK_TYPES.find(t => t.value === task.type)?.label || 'Task';
+        const sizeLabel = TASK_SIZES.find(s => s.value === task.size)?.label || 'N/A';
+        const actualTime = getElapsedTime(task);
+        const estimatedHours = task.estimatedHours || 0;
+        const variance = estimatedHours > 0 
+          ? ((actualTime / 3600 - estimatedHours) / estimatedHours * 100).toFixed(0) 
+          : 'N/A';
+        
+        output += `${index + 1}. ${task.text}\n`;
+        output += `   Type: ${typeLabel} | Size: ${sizeLabel}\n`;
+        output += `   Time: ${formatTime(actualTime)}`;
+        if (estimatedHours > 0) {
+          output += ` (Est: ${estimatedHours}h, Variance: ${variance}%)`;
+        }
+        output += '\n';
+        
+        if (task.qualityRating && task.qualityRating !== 'unrated') {
+          const rating = QUALITY_RATINGS.find(r => r.value === task.qualityRating);
+          output += `   Quality: ${rating?.label || 'N/A'}\n`;
+        }
+        output += '\n';
+      });
+      output += '\n';
+    });
+
+    return output.trim();
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('✅ Copied to clipboard!');
+    }).catch(() => {
+      alert('❌ Failed to copy. Please copy manually.');
+    });
   };
 
   const toggleTask = (id) => {
@@ -405,7 +790,10 @@ export default function DailyTaskManager() {
     startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
     startOfWeek.setHours(0, 0, 0, 0);
 
-    return tasks.filter(task => {
+    // Include both active and archived tasks in metrics
+    const allTasks = [...tasks, ...archivedTasks];
+
+    return allTasks.filter(task => {
       const createdDate = new Date(task.createdAt);
       if (period === 'today') {
         return createdDate >= startOfToday;
@@ -588,7 +976,7 @@ export default function DailyTaskManager() {
           <p className="text-gray-600">Stay focused. Stay productive.</p>
           
           {/* View Toggle */}
-          <div className="mt-4 flex justify-center gap-2">
+          <div className="mt-4 flex justify-center gap-2 flex-wrap">
             <button
               onClick={() => setShowProductivity(false)}
               className={`px-6 py-2 rounded-lg font-medium transition-colors ${
@@ -609,6 +997,25 @@ export default function DailyTaskManager() {
             >
               <Target className="w-4 h-4" />
               Productivity Analytics
+            </button>
+            <button
+              onClick={() => setShowChangelog(true)}
+              className="px-6 py-2 rounded-lg font-medium transition-colors bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+            >
+              📋 Work Summary
+            </button>
+            <button
+              onClick={() => {
+                setStorageInfo(calculateStorageUsage());
+                setShowStorageManager(true);
+              }}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                storageInfo.percentage > 80 
+                  ? 'bg-orange-600 text-white animate-pulse' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              💾 Storage {storageInfo.percentage > 0 && `(${Math.round(storageInfo.percentage)}%)`}
             </button>
           </div>
         </div>
@@ -1528,6 +1935,277 @@ export default function DailyTaskManager() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Changelog/Work Summary Modal */}
+        {showChangelog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full p-6 my-8">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-800">📋 Work Summary & Changelog</h3>
+                <button
+                  onClick={() => setShowChangelog(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Format and Date Range Selectors */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Format</label>
+                  <select
+                    value={changelogFormat}
+                    onChange={(e) => setChangelogFormat(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="standup">Daily Standup (Simple)</option>
+                    <option value="markdown">Markdown</option>
+                    <option value="jira">JIRA Format</option>
+                    <option value="email">Email Format</option>
+                    <option value="detailed">Detailed Report</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
+                  <select
+                    value={changelogDateRange}
+                    onChange={(e) => setChangelogDateRange(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="today">Today</option>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="week">This Week</option>
+                    <option value="last-week">Last Week</option>
+                    <option value="month">This Month</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Info Cards */}
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="bg-blue-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {getTasksForChangelog(changelogDateRange).length}
+                  </div>
+                  <div className="text-sm text-gray-600">Tasks Completed</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {formatTime(getTasksForChangelog(changelogDateRange).reduce((sum, t) => sum + getElapsedTime(t), 0))}
+                  </div>
+                  <div className="text-sm text-gray-600">Total Time</div>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {new Set(getTasksForChangelog(changelogDateRange).map(t => t.organization)).size}
+                  </div>
+                  <div className="text-sm text-gray-600">Organizations</div>
+                </div>
+              </div>
+
+              {/* Generated Changelog Preview */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-gray-800">Preview</h4>
+                  <button
+                    onClick={() => copyToClipboard(generateChangelog(changelogFormat, changelogDateRange))}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                  >
+                    📋 Copy to Clipboard
+                  </button>
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
+                  {generateChangelog(changelogFormat, changelogDateRange) || 'No completed tasks in this period.'}
+                </div>
+              </div>
+
+              {/* Format Descriptions */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-900 mb-2">Format Guide</h4>
+                <div className="text-sm text-blue-800 space-y-1">
+                  <div><strong>Daily Standup:</strong> Quick summary for team standup meetings</div>
+                  <div><strong>Markdown:</strong> Formatted for GitHub, Notion, or documentation</div>
+                  <div><strong>JIRA:</strong> JIRA-compatible markup for issue updates</div>
+                  <div><strong>Email:</strong> Professional email format for manager updates</div>
+                  <div><strong>Detailed Report:</strong> Comprehensive report with metrics and estimates</div>
+                </div>
+              </div>
+
+              {/* Quick Tips */}
+              <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="text-sm text-yellow-900">
+                  <strong>💡 Tip:</strong> Completed tasks are kept visible for 7 days before auto-archiving. 
+                  Generate your weekly summary on Friday to capture all your work!
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Storage Manager Modal */}
+        {showStorageManager && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 my-8">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-800">Storage Manager</h3>
+                <button
+                  onClick={() => setShowStorageManager(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Storage Usage */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">Storage Usage</span>
+                  <span className="text-sm text-gray-600">
+                    {formatBytes(storageInfo.used)} / {formatBytes(storageInfo.limit)}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-4">
+                  <div 
+                    className={`h-4 rounded-full transition-all ${
+                      storageInfo.percentage > 80 ? 'bg-red-600' :
+                      storageInfo.percentage > 60 ? 'bg-orange-600' :
+                      'bg-green-600'
+                    }`}
+                    style={{ width: `${Math.min(storageInfo.percentage, 100)}%` }}
+                  ></div>
+                </div>
+                <div className="text-center mt-2">
+                  <span className={`text-2xl font-bold ${
+                    storageInfo.percentage > 80 ? 'text-red-600' :
+                    storageInfo.percentage > 60 ? 'text-orange-600' :
+                    'text-green-600'
+                  }`}>
+                    {Math.round(storageInfo.percentage)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Storage Breakdown */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="font-semibold text-gray-800 mb-3">Storage Breakdown</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Active Tasks ({storageInfo.taskCount})</span>
+                    <span className="font-medium">{formatBytes(storageInfo.tasksSize)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Archived Tasks ({storageInfo.archivedCount})</span>
+                    <span className="font-medium">{formatBytes(storageInfo.archivedSize)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning if space is low */}
+              {storageInfo.percentage > 80 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-semibold text-red-900 mb-1">Storage Almost Full!</div>
+                      <div className="text-sm text-red-700">
+                        You're using {Math.round(storageInfo.percentage)}% of available storage. 
+                        Consider exporting your data and clearing old tasks.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="space-y-3">
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-3">Data Management</h4>
+                  
+                  {/* Export Data */}
+                  <button
+                    onClick={exportData}
+                    className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors mb-2 flex items-center justify-center gap-2"
+                  >
+                    📥 Export All Data (Backup)
+                  </button>
+                  <p className="text-xs text-gray-600 mb-4">
+                    Downloads a JSON file with all your tasks and archived data. Keep this as a backup!
+                  </p>
+
+                  {/* Import Data */}
+                  <label className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors cursor-pointer flex items-center justify-center gap-2">
+                    📤 Import Data (Restore)
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={importData}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="text-xs text-gray-600 mb-4 mt-2">
+                    Restore from a previously exported backup file.
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-3">Cleanup Options</h4>
+                  
+                  {/* Archive Completed */}
+                  <button
+                    onClick={manualArchiveCompleted}
+                    className="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors mb-2"
+                  >
+                    📦 Archive All Completed Tasks
+                  </button>
+                  <p className="text-xs text-gray-600 mb-4">
+                    Moves completed tasks to archive. They're still saved but won't appear in main view.
+                  </p>
+
+                  {/* Clear Old Archived */}
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <button
+                      onClick={() => clearOldArchivedTasks(90)}
+                      className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors text-sm"
+                    >
+                      Clear Archive (90+ days)
+                    </button>
+                    <button
+                      onClick={() => clearOldArchivedTasks(180)}
+                      className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors text-sm"
+                    >
+                      Clear Archive (180+ days)
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600 mb-4">
+                    Permanently delete old archived tasks. Use after exporting!
+                  </p>
+
+                  {/* Clear All Archive */}
+                  <button
+                    onClick={clearArchivedTasks}
+                    className="w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+                  >
+                    🗑️ Clear All Archived Tasks ({archivedTasks.length})
+                  </button>
+                  <p className="text-xs text-gray-600 mt-2">
+                    Permanently deletes all archived tasks. Make sure to export first!
+                  </p>
+                </div>
+              </div>
+
+              {/* Auto-archive info */}
+              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="text-sm text-blue-900">
+                  <strong>💡 Auto-Archive:</strong> Completed tasks older than 7 days are automatically 
+                  moved to archive to save space. This keeps your recent work visible for weekly summaries 
+                  while managing storage efficiently. Archive is included in productivity metrics but hidden from main view.
+                </div>
+              </div>
             </div>
           </div>
         )}
