@@ -36,13 +36,16 @@ const DEFAULT_ORGANIZATIONS = [
 ];
 
 const MEETING_TEMPLATES = [
-  { label: 'Daily Standup', duration: 0.25, time: '09:00' },
+  { label: 'Quick Standup (15 min)', duration: 0.25, time: '09:00' },
+  { label: 'Standard Standup (30 min)', duration: 0.5, time: '09:30' },
+  { label: 'Team Sync (15 min)', duration: 0.25, time: '14:00' },
+  { label: 'Team Sync (30 min)', duration: 0.5, time: '14:30' },
   { label: 'Sprint Planning', duration: 2, time: '10:00' },
-  { label: 'Sprint Review', duration: 1, time: '14:00' },
-  { label: 'Sprint Retrospective', duration: 1, time: '15:00' },
+  { label: 'Sprint Review', duration: 1, time: '15:00' },
+  { label: 'Sprint Retrospective', duration: 1, time: '16:00' },
   { label: 'Points Confirmation', duration: 1, time: '11:00' },
   { label: 'Tech Review', duration: 1, time: '13:00' },
-  { label: '1-on-1', duration: 0.5, time: '16:00' }
+  { label: '1-on-1 (30 min)', duration: 0.5, time: '16:30' }
 ];
 
 const PRIORITY_LEVELS = [
@@ -407,6 +410,45 @@ export default function DailyTaskManager() {
               );
               localStorage.setItem(`staleReminder_${task.id}`, now.toISOString());
             }
+          }
+        }
+      });
+
+      // Auto-start scheduled meetings when their time arrives
+      tasks.forEach(task => {
+        // Only for incomplete tasks with scheduled time
+        if (!task.completed && task.scheduledTime && !task.isTimerRunning) {
+          const [schedHours, schedMins] = task.scheduledTime.split(':').map(Number);
+          const currentHours = now.getHours();
+          const currentMins = now.getMinutes();
+          
+          // Check if we're at or past the scheduled time (within same minute)
+          const isScheduledTime = currentHours === schedHours && currentMins === schedMins;
+          
+          // Check if we haven't already auto-started this task today
+          const lastAutoStart = localStorage.getItem(`autoStart_${task.id}`);
+          const todayDate = now.toDateString();
+          const alreadyStartedToday = lastAutoStart === todayDate;
+          
+          if (isScheduledTime && !alreadyStartedToday) {
+            // Auto-start the timer!
+            setTasks(prevTasks => prevTasks.map(t => 
+              t.id === task.id 
+                ? { ...t, isTimerRunning: true, timerStartedAt: new Date().toISOString() }
+                : t
+            ));
+            
+            // Mark as auto-started today
+            localStorage.setItem(`autoStart_${task.id}`, todayDate);
+            
+            // Show notification
+            const taskTypeInfo = getTaskTypeInfo(task.type);
+            showNotification(
+              `⏱️ ${taskTypeInfo.label} Started`,
+              `"${task.text}" timer started automatically at ${task.scheduledTime}`,
+              'meeting',
+              task.id
+            );
           }
         }
       });
@@ -2176,15 +2218,22 @@ export default function DailyTaskManager() {
               : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-400'
           }`}>
             <div className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  ⏱️ Currently Working On
-                </h3>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                  <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    ⏱️ Currently Working On
+                  </h3>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-sm font-bold ${
+                  darkMode ? 'bg-green-600 text-white' : 'bg-green-500 text-white'
+                }`}>
+                  {tasks.filter(t => t.isTimerRunning).length} Active
+                </div>
               </div>
               
               <div className="space-y-3">
-                {tasks.filter(t => t.isTimerRunning).map(task => {
+                {tasks.filter(t => t.isTimerRunning).map((task, index) => {
                   const typeInfo = getTaskTypeInfo(task.type);
                   const TypeIcon = typeInfo.icon;
                   const orgInfo = getOrgInfo(task.organization);
@@ -2196,9 +2245,11 @@ export default function DailyTaskManager() {
                   return (
                     <div 
                       key={task.id}
-                      className={`p-4 rounded-lg ${
-                        darkMode ? 'bg-gray-800/80' : 'bg-white'
-                      }`}
+                      className={`p-4 rounded-lg border-l-4 ${
+                        darkMode 
+                          ? 'bg-gray-800/80 border-green-500' 
+                          : 'bg-white border-green-400'
+                      } ${index > 0 ? 'mt-3' : ''}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1">
@@ -2207,6 +2258,13 @@ export default function DailyTaskManager() {
                             <span className={`font-semibold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                               {task.text}
                             </span>
+                            {tasks.filter(t => t.isTimerRunning).length > 1 && (
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'
+                              }`}>
+                                #{index + 1}
+                              </span>
+                            )}
                           </div>
                           
                           <div className="flex items-center gap-4 text-sm">
@@ -2246,8 +2304,13 @@ export default function DailyTaskManager() {
                 })}
               </div>
               
-              <div className={`mt-3 text-sm ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
-                💡 Timer continues running even when you switch tabs or apps!
+              <div className={`mt-3 text-sm flex items-center justify-between ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                <span>💡 All timers continue running even when you switch tabs or apps!</span>
+                {tasks.filter(t => t.isTimerRunning).length > 1 && (
+                  <span className="font-semibold">
+                    {tasks.filter(t => t.isTimerRunning).length} concurrent tasks
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -2397,6 +2460,14 @@ export default function DailyTaskManager() {
                     darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'
                   }`}
                 />
+                {newTaskTime && (
+                  <div className={`mt-2 text-xs flex items-center gap-1 ${
+                    darkMode ? 'text-green-400' : 'text-green-700'
+                  }`}>
+                    <span>⏱️</span>
+                    <span>Timer will auto-start at {newTaskTime}</span>
+                  </div>
+                )}
               </div>
               <button
                 type="button"
@@ -2820,8 +2891,21 @@ export default function DailyTaskManager() {
                             {task.isTimerRunning && (
                               <span className="inline-block w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
                             )}
-                            {task.scheduledTime && (
-                              <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs font-semibold">
+                            {task.scheduledTime && !task.completed && (
+                              <span className={`ml-2 px-2 py-0.5 rounded text-xs font-semibold ${
+                                darkMode 
+                                  ? 'bg-orange-900 text-orange-200 border border-orange-700'
+                                  : 'bg-orange-100 text-orange-700'
+                              }`} title="Timer will auto-start at this time">
+                                📅 {task.scheduledTime} ⏱️
+                              </span>
+                            )}
+                            {task.scheduledTime && task.completed && (
+                              <span className={`ml-2 px-2 py-0.5 rounded text-xs font-semibold ${
+                                darkMode 
+                                  ? 'bg-gray-700 text-gray-400'
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}>
                                 📅 {task.scheduledTime}
                               </span>
                             )}
