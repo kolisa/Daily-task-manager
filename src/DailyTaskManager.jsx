@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, Circle, Trash2, Plus, TrendingUp, Play, Pause, Square, Clock, Bell, AlertCircle, Code, Bug, Wrench, Briefcase, Coffee, BookOpen, Target, Award, TrendingDown, Zap, Users, Edit2, Save, X } from 'lucide-react';
 
 const TASK_TYPES = [
-  { value: 'feature', label: 'Feature Development', icon: Code, color: 'blue' },
+  { value: 'feature', label: 'Feature', icon: Code, color: 'blue' },
   { value: 'bug', label: 'Bug Fix', icon: Bug, color: 'red' },
-  { value: 'support', label: 'Support/Small Task', icon: Wrench, color: 'green' },
-  { value: 'learning', label: 'Learning/Upskilling', icon: BookOpen, color: 'purple' },
-  { value: 'meeting', label: 'Meeting/Standup', icon: Users, color: 'orange' }
+  { value: 'support', label: 'Support', icon: Wrench, color: 'green' },
+  { value: 'learning', label: 'Learning', icon: BookOpen, color: 'purple' },
+  { value: 'meeting', label: 'Meeting', icon: Users, color: 'orange' }
 ];
 
 const TASK_SIZES = [
@@ -449,6 +449,7 @@ export default function DailyTaskManager() {
         organization: newTaskOrg,
         priority: newTaskPriority,
         tags: [...newTaskTags],
+        notes: '',
         estimatedHours: sizeData.hours,
         scheduledTime: newTaskTime || null,
         recurrence: newTaskRecurrence,
@@ -481,6 +482,7 @@ export default function DailyTaskManager() {
       organization: newTaskOrg,
       priority: 'medium',
       tags: [],
+      notes: '',
       estimatedHours: template.duration,
       scheduledTime: template.time,
       recurrence: 'none',
@@ -1385,7 +1387,7 @@ export default function DailyTaskManager() {
     const periodTasks = getTasksForPeriod(period);
     const completedTasks = periodTasks.filter(t => t.completed);
     const workTasks = periodTasks.filter(t => {
-      const org = ORGANIZATIONS.find(o => o.value === t.organization);
+      const org = organizations.find(o => o.value === t.organization);
       return org && org.type === 'work';
     });
     const completedWorkTasks = workTasks.filter(t => t.completed);
@@ -2307,8 +2309,8 @@ export default function DailyTaskManager() {
                         onClick={() => setNewTaskType(type.value)}
                         className={getTypeButtonClasses(type.color, newTaskType === type.value)}
                       >
-                        <Icon className="w-4 h-4" />
-                        <span className="text-xs font-medium">{type.label.split(' ')[0]}</span>
+                        <Icon className="w-4 h-4 flex-shrink-0" />
+                        <span className="text-xs font-medium truncate">{type.label}</span>
                       </button>
                     );
                   })}
@@ -3028,19 +3030,21 @@ export default function DailyTaskManager() {
         {/* Meeting Templates Modal */}
         {showMeetingTemplates && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+            <div className={`rounded-lg shadow-xl max-w-2xl w-full p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-800">📅 Meeting Templates</h3>
+                <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  📅 Meeting Templates
+                </h3>
                 <button
                   onClick={() => setShowMeetingTemplates(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className={`${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-600'}`}
                 >
                   ✕
                 </button>
               </div>
 
-              <p className="text-sm text-gray-600 mb-4">
-                Quick add common meetings to your schedule. Selected organization: <strong>{getOrgInfo(newTaskOrg).label}</strong>
+              <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Quick add common meetings to your schedule. Selected organization: <strong className={darkMode ? 'text-white' : ''}>{getOrgInfo(newTaskOrg).label}</strong>
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -3048,13 +3052,19 @@ export default function DailyTaskManager() {
                   <button
                     key={index}
                     onClick={() => addMeetingFromTemplate(template)}
-                    className="p-4 border-2 border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-all text-left"
+                    className={`p-4 border-2 rounded-lg transition-all text-left ${
+                      darkMode 
+                        ? 'border-gray-600 hover:border-orange-500 hover:bg-gray-700'
+                        : 'border-gray-200 hover:border-orange-500 hover:bg-orange-50'
+                    }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div className="font-semibold text-gray-900">{template.label}</div>
+                      <div className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {template.label}
+                      </div>
                       <Users className="w-5 h-5 text-orange-600" />
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                       <div>🕐 {template.time}</div>
                       <div>⏱️ {template.duration}h duration</div>
                     </div>
@@ -3062,7 +3072,11 @@ export default function DailyTaskManager() {
                 ))}
               </div>
 
-              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
+              <div className={`mt-4 rounded-lg p-3 text-sm ${
+                darkMode 
+                  ? 'bg-blue-900 border border-blue-700 text-blue-200'
+                  : 'bg-blue-50 border border-blue-200 text-blue-900'
+              }`}>
                 <strong>💡 Tip:</strong> Meetings are tracked separately in analytics. They count toward your work hours but are highlighted as meetings.
               </div>
             </div>
