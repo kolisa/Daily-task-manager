@@ -335,6 +335,7 @@ export default function DailyTaskManager() {
   }, [morningReminderTime]);
 
   // Update current time every second for active timers
+  // This keeps running even when tab is inactive - timer accuracy maintained via timestamps
   useEffect(() => {
     timerRef.current = setInterval(() => {
       setCurrentTime(Date.now());
@@ -344,6 +345,22 @@ export default function DailyTaskManager() {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
+    };
+  }, []);
+
+  // Force timer update when tab becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Tab is now visible - force immediate update
+        setCurrentTime(Date.now());
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
@@ -2486,6 +2503,91 @@ export default function DailyTaskManager() {
             </button>
           </div>
         </div>
+
+        {/* Currently Working On - Active Tasks */}
+        {tasks.some(t => t.isTimerRunning) && (
+          <div className={`rounded-lg shadow-lg mb-6 border-2 ${
+            darkMode 
+              ? 'bg-gradient-to-r from-blue-900 to-purple-900 border-blue-500' 
+              : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-400'
+          }`}>
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  ⏱️ Currently Working On
+                </h3>
+              </div>
+              
+              <div className="space-y-3">
+                {tasks.filter(t => t.isTimerRunning).map(task => {
+                  const typeInfo = getTaskTypeInfo(task.type);
+                  const TypeIcon = typeInfo.icon;
+                  const orgInfo = getOrgInfo(task.organization);
+                  const elapsedTime = getElapsedTime(task);
+                  const hours = Math.floor(elapsedTime / 3600);
+                  const mins = Math.floor((elapsedTime % 3600) / 60);
+                  const secs = elapsedTime % 60;
+                  
+                  return (
+                    <div 
+                      key={task.id}
+                      className={`p-4 rounded-lg ${
+                        darkMode ? 'bg-gray-800/80' : 'bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <TypeIcon className="w-5 h-5 text-blue-600" />
+                            <span className={`font-semibold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {task.text}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              <Briefcase className="w-4 h-4" />
+                              {orgInfo.label}
+                            </span>
+                            <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {typeInfo.icon && <TypeIcon className="w-4 h-4" />}
+                              {typeInfo.label}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="text-3xl font-bold font-mono text-green-600">
+                            {hours > 0 && `${hours}:`}{String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => pauseTimer(task.id)}
+                              className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm font-medium transition-colors"
+                            >
+                              ⏸ Pause
+                            </button>
+                            <button
+                              onClick={() => stopTimer(task.id)}
+                              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+                            >
+                              ✓ Complete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              <div className={`mt-3 text-sm ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                💡 Timer continues running even when you switch tabs or apps!
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Organization Filter */}
         <div className={`rounded-lg shadow-md mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
