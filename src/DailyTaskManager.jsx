@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCircle2, Circle, Trash2, Plus, TrendingUp, Play, Pause, Square, Clock, Bell, AlertCircle, Code, Bug, Wrench, Briefcase, Coffee, BookOpen, Target, Award, TrendingDown, Zap } from 'lucide-react';
+import { CheckCircle2, Circle, Trash2, Plus, TrendingUp, Play, Pause, Square, Clock, Bell, AlertCircle, Code, Bug, Wrench, Briefcase, Coffee, BookOpen, Target, Award, TrendingDown, Zap, Users, Edit2, Save, X } from 'lucide-react';
 
 const TASK_TYPES = [
   { value: 'feature', label: 'Feature Development', icon: Code, color: 'blue' },
   { value: 'bug', label: 'Bug Fix', icon: Bug, color: 'red' },
   { value: 'support', label: 'Support/Small Task', icon: Wrench, color: 'green' },
-  { value: 'learning', label: 'Learning/Upskilling', icon: BookOpen, color: 'purple' }
+  { value: 'learning', label: 'Learning/Upskilling', icon: BookOpen, color: 'purple' },
+  { value: 'meeting', label: 'Meeting/Standup', icon: Users, color: 'orange' }
 ];
 
 const TASK_SIZES = [
@@ -25,23 +26,85 @@ const QUALITY_RATINGS = [
   { value: 'unrated', label: 'Not yet rated', score: 0 }
 ];
 
-const ORGANIZATIONS = [
+const DEFAULT_ORGANIZATIONS = [
   { value: 'webafrica', label: 'Web Africa', icon: Briefcase, color: 'blue', type: 'work' },
   { value: 'lexisnexis', label: 'LexisNexis', icon: Briefcase, color: 'indigo', type: 'work' },
+  { value: 'tut', label: 'TUT (Tshwane University of Technology)', icon: Briefcase, color: 'cyan', type: 'work' },
   { value: 'bhukuveni', label: 'Bhukuveni', icon: Coffee, color: 'purple', type: 'personal' },
   { value: 'khoi', label: 'Khoi', icon: Coffee, color: 'pink', type: 'personal' },
   { value: 'nowmail', label: 'Nowmail', icon: Coffee, color: 'emerald', type: 'personal' }
 ];
 
+const MEETING_TEMPLATES = [
+  { label: 'Daily Standup', duration: 0.25, time: '09:00' },
+  { label: 'Sprint Planning', duration: 2, time: '10:00' },
+  { label: 'Sprint Review', duration: 1, time: '14:00' },
+  { label: 'Sprint Retrospective', duration: 1, time: '15:00' },
+  { label: 'Points Confirmation', duration: 1, time: '11:00' },
+  { label: 'Tech Review', duration: 1, time: '13:00' },
+  { label: '1-on-1', duration: 0.5, time: '16:00' }
+];
+
+const PRIORITY_LEVELS = [
+  { value: 'high', label: 'High Priority', color: 'red', icon: '🔴' },
+  { value: 'medium', label: 'Medium Priority', color: 'yellow', icon: '🟡' },
+  { value: 'low', label: 'Low Priority', color: 'green', icon: '🟢' }
+];
+
+const DEFAULT_TAGS = [
+  { value: 'urgent', label: 'Urgent', color: 'red' },
+  { value: 'blocked', label: 'Blocked', color: 'orange' },
+  { value: 'review-needed', label: 'Review Needed', color: 'blue' },
+  { value: 'client-facing', label: 'Client Facing', color: 'purple' },
+  { value: 'technical-debt', label: 'Technical Debt', color: 'gray' },
+  { value: 'documentation', label: 'Documentation', color: 'green' }
+];
+
+const RECURRENCE_PATTERNS = [
+  { value: 'none', label: 'No Recurrence' },
+  { value: 'daily', label: 'Daily (Every day)' },
+  { value: 'weekdays', label: 'Weekdays (Mon-Fri)' },
+  { value: 'weekly', label: 'Weekly (Same day each week)' },
+  { value: 'biweekly', label: 'Bi-weekly (Every 2 weeks)' },
+  { value: 'monthly', label: 'Monthly (Same day each month)' }
+];
+
+const KEYBOARD_SHORTCUTS = [
+  { key: 'n', description: 'New task', action: 'new_task' },
+  { key: '/', description: 'Search tasks', action: 'search' },
+  { key: 't', description: 'Toggle Today view', action: 'today_view' },
+  { key: 'p', description: 'Toggle Pomodoro timer', action: 'pomodoro' },
+  { key: 'd', description: 'Toggle dark mode', action: 'dark_mode' },
+  { key: 'a', description: 'Show analytics', action: 'analytics' },
+  { key: 'w', description: 'Work summary', action: 'work_summary' },
+  { key: '?', description: 'Show shortcuts', action: 'help' },
+  { key: 'Escape', description: 'Close modal/Cancel', action: 'escape' }
+];
+
+const POMODORO_SETTINGS = {
+  focus: 25, // 25 minutes focus
+  shortBreak: 5, // 5 minutes short break
+  longBreak: 15, // 15 minutes long break
+  sessionsBeforeLongBreak: 4
+};
+
 export default function DailyTaskManager() {
   const [tasks, setTasks] = useState([]);
   const [archivedTasks, setArchivedTasks] = useState([]);
+  const [organizations, setOrganizations] = useState(DEFAULT_ORGANIZATIONS);
+  const [availableTags, setAvailableTags] = useState(DEFAULT_TAGS);
   const [newTask, setNewTask] = useState('');
   const [newTaskType, setNewTaskType] = useState('feature');
   const [newTaskSize, setNewTaskSize] = useState('m');
   const [newTaskOrg, setNewTaskOrg] = useState('webafrica');
+  const [newTaskTime, setNewTaskTime] = useState('');
+  const [newTaskPriority, setNewTaskPriority] = useState('medium');
+  const [newTaskTags, setNewTaskTags] = useState([]);
+  const [newTaskRecurrence, setNewTaskRecurrence] = useState('none');
   const [filter, setFilter] = useState('all');
   const [orgFilter, setOrgFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const [tagFilter, setTagFilter] = useState('all');
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [morningReminderTime, setMorningReminderTime] = useState('09:00');
@@ -49,11 +112,32 @@ export default function DailyTaskManager() {
   const [selectedTaskForRating, setSelectedTaskForRating] = useState(null);
   const [showStorageManager, setShowStorageManager] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [showOrgManager, setShowOrgManager] = useState(false);
+  const [showMeetingTemplates, setShowMeetingTemplates] = useState(false);
+  const [showTagManager, setShowTagManager] = useState(false);
   const [changelogFormat, setChangelogFormat] = useState('standup');
   const [changelogDateRange, setChangelogDateRange] = useState('week');
   const [storageInfo, setStorageInfo] = useState({ used: 0, limit: 5000000, percentage: 0 });
+  const [editingOrg, setEditingOrg] = useState(null);
+  const [newOrgData, setNewOrgData] = useState({ label: '', type: 'work', color: 'blue' });
+  const [newTagData, setNewTagData] = useState({ label: '', color: 'blue' });
+  const [weeklyCleanupEnabled, setWeeklyCleanupEnabled] = useState(true);
+  const [lastCleanupDate, setLastCleanupDate] = useState(null);
+  const [darkMode, setDarkMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showTodayView, setShowTodayView] = useState(false);
+  const [showPomodoro, setShowPomodoro] = useState(false);
+  const [pomodoroMode, setPomodoroMode] = useState('focus'); // focus, shortBreak, longBreak
+  const [pomodoroTime, setPomodoroTime] = useState(POMODORO_SETTINGS.focus * 60);
+  const [pomodoroRunning, setPomodoroRunning] = useState(false);
+  const [pomodoroSessions, setPomodoroSessions] = useState(0);
+  const [activePomodoroTask, setActivePomodoroTask] = useState(null);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [editingTaskNotes, setEditingTaskNotes] = useState(null);
   const timerRef = useRef(null);
   const notificationCheckRef = useRef(null);
+  const pomodoroTimerRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   // Calculate storage usage
   const calculateStorageUsage = () => {
@@ -86,9 +170,40 @@ export default function DailyTaskManager() {
       setArchivedTasks(JSON.parse(savedArchivedTasks));
     }
 
+    const savedOrganizations = localStorage.getItem('customOrganizations');
+    if (savedOrganizations) {
+      const parsed = JSON.parse(savedOrganizations);
+      // Restore icon components (can't be serialized to localStorage)
+      const withIcons = parsed.map(org => ({
+        ...org,
+        icon: org.type === 'work' ? Briefcase : Coffee
+      }));
+      setOrganizations(withIcons);
+    }
+
+    const savedTags = localStorage.getItem('customTags');
+    if (savedTags) {
+      setAvailableTags(JSON.parse(savedTags));
+    }
+
+    const savedDarkMode = localStorage.getItem('darkMode');
+    if (savedDarkMode !== null) {
+      setDarkMode(JSON.parse(savedDarkMode));
+    }
+
     const savedReminderTime = localStorage.getItem('morningReminderTime');
     if (savedReminderTime) {
       setMorningReminderTime(savedReminderTime);
+    }
+
+    const savedWeeklyCleanup = localStorage.getItem('weeklyCleanupEnabled');
+    if (savedWeeklyCleanup !== null) {
+      setWeeklyCleanupEnabled(JSON.parse(savedWeeklyCleanup));
+    }
+
+    const savedLastCleanup = localStorage.getItem('lastCleanupDate');
+    if (savedLastCleanup) {
+      setLastCleanupDate(savedLastCleanup);
     }
 
     // Check notification permission
@@ -98,7 +213,109 @@ export default function DailyTaskManager() {
 
     // Auto-archive old completed tasks on load
     autoArchiveOldTasks();
+
+    // Check for weekly cleanup
+    checkWeeklyCleanup();
+    
+    // Check for recurring tasks
+    checkRecurringTasks();
   }, []);
+
+  // Apply dark mode to document
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+  }, [darkMode]);
+
+  // Save tags to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('customTags', JSON.stringify(availableTags));
+  }, [availableTags]);
+
+  // Save weekly cleanup setting
+  useEffect(() => {
+    localStorage.setItem('weeklyCleanupEnabled', JSON.stringify(weeklyCleanupEnabled));
+  }, [weeklyCleanupEnabled]);
+
+  // Save last cleanup date
+  useEffect(() => {
+    if (lastCleanupDate) {
+      localStorage.setItem('lastCleanupDate', lastCleanupDate);
+    }
+  }, [lastCleanupDate]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      // Don't trigger shortcuts when typing in inputs
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+        if (e.key === 'Escape') {
+          e.target.blur(); // Close input on Escape
+        }
+        return;
+      }
+
+      switch(e.key) {
+        case 'n':
+          e.preventDefault();
+          document.querySelector('input[placeholder*="accomplish"]')?.focus();
+          break;
+        case '/':
+          e.preventDefault();
+          setSearchQuery('');
+          setTimeout(() => searchInputRef.current?.focus(), 100);
+          break;
+        case 't':
+          e.preventDefault();
+          setShowTodayView(!showTodayView);
+          break;
+        case 'p':
+          e.preventDefault();
+          setShowPomodoro(!showPomodoro);
+          break;
+        case 'd':
+          e.preventDefault();
+          setDarkMode(!darkMode);
+          break;
+        case 'a':
+          e.preventDefault();
+          setShowProductivity(true);
+          break;
+        case 'w':
+          e.preventDefault();
+          setShowChangelog(true);
+          break;
+        case '?':
+          e.preventDefault();
+          setShowKeyboardShortcuts(true);
+          break;
+        case 'Escape':
+          e.preventDefault();
+          // Close any open modals
+          setShowKeyboardShortcuts(false);
+          setShowPomodoro(false);
+          setShowChangelog(false);
+          setShowStorageManager(false);
+          setShowOrgManager(false);
+          setShowTagManager(false);
+          setShowMeetingTemplates(false);
+          setEditingTaskNotes(null);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [showTodayView, showPomodoro, darkMode]);
+
+  // Save organizations to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('customOrganizations', JSON.stringify(organizations));
+  }, [organizations]);
 
   // Save tasks to localStorage whenever they change
   useEffect(() => {
@@ -230,7 +447,12 @@ export default function DailyTaskManager() {
         type: newTaskType,
         size: newTaskSize,
         organization: newTaskOrg,
+        priority: newTaskPriority,
+        tags: [...newTaskTags],
         estimatedHours: sizeData.hours,
+        scheduledTime: newTaskTime || null,
+        recurrence: newTaskRecurrence,
+        lastRecurrence: newTaskRecurrence !== 'none' ? new Date().toISOString() : null,
         completed: false,
         qualityRating: 'unrated',
         createdAt: new Date().toISOString(),
@@ -243,6 +465,167 @@ export default function DailyTaskManager() {
       setTasks([task, ...tasks]);
       setNewTask('');
       setNewTaskSize('m');
+      setNewTaskTime('');
+      setNewTaskPriority('medium');
+      setNewTaskTags([]);
+      setNewTaskRecurrence('none');
+    }
+  };
+
+  const addMeetingFromTemplate = (template) => {
+    const task = {
+      id: Date.now(),
+      text: template.label,
+      type: 'meeting',
+      size: 'xs',
+      organization: newTaskOrg,
+      priority: 'medium',
+      tags: [],
+      estimatedHours: template.duration,
+      scheduledTime: template.time,
+      recurrence: 'none',
+      lastRecurrence: null,
+      completed: false,
+      qualityRating: 'unrated',
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+      timeSpent: 0,
+      isTimerRunning: false,
+      timerStartedAt: null,
+      sessions: []
+    };
+    setTasks([task, ...tasks]);
+    setShowMeetingTemplates(false);
+  };
+
+  // Recurring Tasks Functions
+  const checkRecurringTasks = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    tasks.forEach(task => {
+      if (task.recurrence === 'none' || !task.lastRecurrence) return;
+
+      const lastRecur = new Date(task.lastRecurrence);
+      const daysSince = Math.floor((now - lastRecur) / (1000 * 60 * 60 * 24));
+
+      let shouldRecur = false;
+
+      switch(task.recurrence) {
+        case 'daily':
+          shouldRecur = daysSince >= 1;
+          break;
+        case 'weekdays':
+          const dayOfWeek = now.getDay();
+          shouldRecur = daysSince >= 1 && dayOfWeek >= 1 && dayOfWeek <= 5; // Mon-Fri
+          break;
+        case 'weekly':
+          shouldRecur = daysSince >= 7;
+          break;
+        case 'biweekly':
+          shouldRecur = daysSince >= 14;
+          break;
+        case 'monthly':
+          shouldRecur = daysSince >= 30;
+          break;
+      }
+
+      if (shouldRecur) {
+        createRecurringTask(task);
+      }
+    });
+  };
+
+  const createRecurringTask = (originalTask) => {
+    const newTask = {
+      ...originalTask,
+      id: Date.now() + Math.random(), // Ensure unique ID
+      completed: false,
+      qualityRating: 'unrated',
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+      timeSpent: 0,
+      isTimerRunning: false,
+      timerStartedAt: null,
+      sessions: [],
+      lastRecurrence: new Date().toISOString()
+    };
+
+    setTasks(prevTasks => {
+      // Update original task's lastRecurrence
+      const updated = prevTasks.map(t => 
+        t.id === originalTask.id 
+          ? { ...t, lastRecurrence: new Date().toISOString() }
+          : t
+      );
+      // Add new recurring instance
+      return [newTask, ...updated];
+    });
+  };
+
+  // Tag Management Functions
+  const addTag = () => {
+    if (newTagData.label.trim()) {
+      const newTag = {
+        value: newTagData.label.toLowerCase().replace(/\s+/g, '-'),
+        label: newTagData.label.trim(),
+        color: newTagData.color
+      };
+      setAvailableTags([...availableTags, newTag]);
+      setNewTagData({ label: '', color: 'blue' });
+    }
+  };
+
+  const deleteTag = (value) => {
+    if (confirm(`Delete tag "${availableTags.find(t => t.value === value)?.label}"?`)) {
+      setAvailableTags(availableTags.filter(tag => tag.value !== value));
+      // Remove tag from all tasks
+      setTasks(tasks.map(task => ({
+        ...task,
+        tags: task.tags.filter(t => t !== value)
+      })));
+    }
+  };
+
+  const toggleTaskTag = (tag) => {
+    if (newTaskTags.includes(tag)) {
+      setNewTaskTags(newTaskTags.filter(t => t !== tag));
+    } else {
+      setNewTaskTags([...newTaskTags, tag]);
+    }
+  };
+
+  // Organization Management Functions
+  const addOrganization = () => {
+    if (newOrgData.label.trim()) {
+      const newOrg = {
+        value: newOrgData.label.toLowerCase().replace(/\s+/g, ''),
+        label: newOrgData.label.trim(),
+        icon: newOrgData.type === 'work' ? Briefcase : Coffee,
+        color: newOrgData.color,
+        type: newOrgData.type
+      };
+      setOrganizations([...organizations, newOrg]);
+      setNewOrgData({ label: '', type: 'work', color: 'blue' });
+    }
+  };
+
+  const updateOrganization = (oldValue, updates) => {
+    setOrganizations(organizations.map(org =>
+      org.value === oldValue ? { ...org, ...updates } : org
+    ));
+    setEditingOrg(null);
+  };
+
+  const deleteOrganization = (value) => {
+    if (confirm(`Delete organization "${organizations.find(o => o.value === value)?.label}"? Tasks will remain but show as unassigned.`)) {
+      setOrganizations(organizations.filter(org => org.value !== value));
+    }
+  };
+
+  const resetOrganizations = () => {
+    if (confirm('Reset to default organizations? Your custom organizations will be removed.')) {
+      setOrganizations(DEFAULT_ORGANIZATIONS);
     }
   };
 
@@ -598,6 +981,171 @@ export default function DailyTaskManager() {
     });
   };
 
+  // Weekly Cleanup Functions
+  const checkWeeklyCleanup = () => {
+    if (!weeklyCleanupEnabled) return;
+
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday
+
+    // Check if it's Monday (1) or Sunday (0) - configurable
+    const isCleanupDay = dayOfWeek === 1; // Monday
+
+    if (!isCleanupDay) return;
+
+    // Check if we've already cleaned up this week
+    if (lastCleanupDate) {
+      const lastCleanup = new Date(lastCleanupDate);
+      const daysSinceCleanup = Math.floor((now - lastCleanup) / (1000 * 60 * 60 * 24));
+      
+      if (daysSinceCleanup < 7) {
+        return; // Already cleaned up this week
+      }
+    }
+
+    // Perform weekly cleanup
+    performWeeklyCleanup();
+  };
+
+  const performWeeklyCleanup = () => {
+    const completedTasks = tasks.filter(t => t.completed);
+    
+    if (completedTasks.length > 0) {
+      // Archive all completed tasks
+      setArchivedTasks([...archivedTasks, ...completedTasks]);
+      setTasks(tasks.filter(t => !t.completed));
+      
+      // Update last cleanup date
+      setLastCleanupDate(new Date().toISOString());
+      
+      // Notify user
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('🧹 Weekly Cleanup Complete', {
+          body: `Archived ${completedTasks.length} completed task${completedTasks.length !== 1 ? 's' : ''} from last week. Fresh start for this week!`,
+          icon: '🧹'
+        });
+      }
+    }
+  };
+
+  const manualWeeklyCleanup = () => {
+    const completedTasks = tasks.filter(t => t.completed);
+    
+    if (completedTasks.length === 0) {
+      alert('No completed tasks to clean up!');
+      return;
+    }
+
+    if (confirm(`Archive ${completedTasks.length} completed task${completedTasks.length !== 1 ? 's' : ''} to start fresh this week?`)) {
+      performWeeklyCleanup();
+      alert(`✅ Cleaned up ${completedTasks.length} tasks! Fresh start for the week.`);
+    }
+  };
+
+  // Pomodoro Functions
+  const handlePomodoroComplete = () => {
+    setPomodoroRunning(false);
+    
+    if (pomodoroMode === 'focus') {
+      const newSessions = pomodoroSessions + 1;
+      setPomodoroSessions(newSessions);
+      
+      // Notification
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('🍅 Pomodoro Complete!', {
+          body: `Focus session ${newSessions} complete! Time for a break.`,
+          icon: '🍅'
+        });
+      }
+      
+      // Decide break type
+      if (newSessions % POMODORO_SETTINGS.sessionsBeforeLongBreak === 0) {
+        setPomodoroMode('longBreak');
+        setPomodoroTime(POMODORO_SETTINGS.longBreak * 60);
+      } else {
+        setPomodoroMode('shortBreak');
+        setPomodoroTime(POMODORO_SETTINGS.shortBreak * 60);
+      }
+    } else {
+      // Break complete
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('🍅 Break Complete!', {
+          body: 'Ready for another focus session?',
+          icon: '🍅'
+        });
+      }
+      setPomodoroMode('focus');
+      setPomodoroTime(POMODORO_SETTINGS.focus * 60);
+    }
+  };
+
+  const startPomodoro = (taskId = null) => {
+    setActivePomodoroTask(taskId);
+    setPomodoroRunning(true);
+    
+    // Start timer on task if provided
+    if (taskId) {
+      const task = tasks.find(t => t.id === taskId);
+      if (task && !task.isTimerRunning) {
+        startTimer(taskId);
+      }
+    }
+  };
+
+  const pausePomodoro = () => {
+    setPomodoroRunning(false);
+  };
+
+  const resetPomodoro = () => {
+    setPomodoroRunning(false);
+    setPomodoroMode('focus');
+    setPomodoroTime(POMODORO_SETTINGS.focus * 60);
+    setActivePomodoroTask(null);
+  };
+
+  const skipPomodoroPhase = () => {
+    handlePomodoroComplete();
+  };
+
+  // Task Notes Functions
+  const updateTaskNotes = (taskId, notes) => {
+    setTasks(tasks.map(task => 
+      task.id === taskId ? { ...task, notes: notes } : task
+    ));
+    setEditingTaskNotes(null);
+  };
+
+  const formatPomodoroTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Pomodoro timer useEffect - MUST be after handlePomodoroComplete is defined
+  useEffect(() => {
+    if (pomodoroRunning && pomodoroTime > 0) {
+      pomodoroTimerRef.current = setInterval(() => {
+        setPomodoroTime(prev => {
+          if (prev <= 1) {
+            handlePomodoroComplete();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (pomodoroTimerRef.current) {
+        clearInterval(pomodoroTimerRef.current);
+      }
+    }
+
+    return () => {
+      if (pomodoroTimerRef.current) {
+        clearInterval(pomodoroTimerRef.current);
+      }
+    };
+  }, [pomodoroRunning, pomodoroTime]);
+
   const toggleTask = (id) => {
     setTasks(tasks.map(task =>
       task.id === id ? { ...task, completed: !task.completed } : task
@@ -742,7 +1290,7 @@ export default function DailyTaskManager() {
   };
 
   const getOrgInfo = (orgValue) => {
-    return ORGANIZATIONS.find(o => o.value === orgValue) || ORGANIZATIONS[0];
+    return organizations.find(o => o.value === orgValue) || organizations[0];
   };
 
   const getTypeButtonClasses = (typeColor, isSelected) => {
@@ -753,7 +1301,8 @@ export default function DailyTaskManager() {
         blue: 'border-blue-500 bg-blue-50 text-blue-700',
         red: 'border-red-500 bg-red-50 text-red-700',
         green: 'border-green-500 bg-green-50 text-green-700',
-        purple: 'border-purple-500 bg-purple-50 text-purple-700'
+        purple: 'border-purple-500 bg-purple-50 text-purple-700',
+        orange: 'border-orange-500 bg-orange-50 text-orange-700'
       };
       return `${baseClasses} ${colorClasses[typeColor] || colorClasses.blue}`;
     }
@@ -766,20 +1315,48 @@ export default function DailyTaskManager() {
       blue: 'bg-blue-100 text-blue-700',
       red: 'bg-red-100 text-red-700',
       green: 'bg-green-100 text-green-700',
-      purple: 'bg-purple-100 text-purple-700'
+      purple: 'bg-purple-100 text-purple-700',
+      orange: 'bg-orange-100 text-orange-700'
     };
     return `inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${colorClasses[typeColor] || colorClasses.blue}`;
   };
 
   const getOrgBadgeClasses = (orgColor) => {
     const colorClasses = {
-      blue: 'bg-blue-100 text-blue-800',
-      indigo: 'bg-indigo-100 text-indigo-800',
-      purple: 'bg-purple-100 text-purple-800',
-      pink: 'bg-pink-100 text-pink-800',
-      emerald: 'bg-emerald-100 text-emerald-800'
+      blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      indigo: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+      cyan: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200',
+      purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+      pink: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200',
+      emerald: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
+      orange: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+      green: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      red: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+      yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      gray: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
     };
     return `inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${colorClasses[orgColor] || colorClasses.blue}`;
+  };
+
+  const getPriorityBadgeClasses = (priority) => {
+    const classes = {
+      high: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200 border border-red-300 dark:border-red-700',
+      medium: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-300 dark:border-yellow-700',
+      low: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200 border border-green-300 dark:border-green-700'
+    };
+    return `inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${classes[priority] || classes.medium}`;
+  };
+
+  const getTagBadgeClasses = (tagColor) => {
+    const colors = {
+      blue: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700',
+      red: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-700',
+      orange: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700',
+      purple: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900 dark:text-purple-200 dark:border-purple-700',
+      green: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-700',
+      gray: 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600'
+    };
+    return `inline-flex items-center px-2 py-0.5 rounded text-xs border ${colors[tagColor] || colors.blue}`;
   };
 
   // Productivity calculations
@@ -926,7 +1503,49 @@ export default function DailyTaskManager() {
     // Filter by organization
     if (orgFilter !== 'all' && task.organization !== orgFilter) return false;
     
+    // Filter by priority
+    if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
+    
+    // Filter by tag
+    if (tagFilter !== 'all' && (!task.tags || !task.tags.includes(tagFilter))) return false;
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchesText = task.text.toLowerCase().includes(query);
+      const matchesNotes = task.notes?.toLowerCase().includes(query);
+      const matchesOrg = getOrgInfo(task.organization).label.toLowerCase().includes(query);
+      const matchesType = getTaskTypeInfo(task.type).label.toLowerCase().includes(query);
+      
+      if (!matchesText && !matchesNotes && !matchesOrg && !matchesType) return false;
+    }
+    
+    // Filter by today view
+    if (showTodayView) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const taskDate = new Date(task.createdAt);
+      taskDate.setHours(0, 0, 0, 0);
+      
+      // Show tasks created today OR tasks with scheduled time today OR incomplete tasks
+      const isToday = taskDate.getTime() === today.getTime();
+      const hasScheduledTimeToday = task.scheduledTime !== null;
+      const isIncomplete = !task.completed;
+      
+      if (!isToday && !hasScheduledTimeToday && task.completed) return false;
+      if (!isIncomplete && !isToday) return false;
+    }
+    
     return true;
+  }).sort((a, b) => {
+    // Sort by priority first (high > medium > low)
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    const aPriority = priorityOrder[a.priority || 'medium'];
+    const bPriority = priorityOrder[b.priority || 'medium'];
+    if (aPriority !== bPriority) return bPriority - aPriority;
+    
+    // Then by creation date (newest first)
+    return new Date(b.createdAt) - new Date(a.createdAt);
   });
 
   const stats = {
@@ -945,7 +1564,7 @@ export default function DailyTaskManager() {
   const weeklyMetrics = calculateProductivityMetrics('week');
 
   // Stats per organization
-  const orgStats = ORGANIZATIONS.map(org => {
+  const orgStats = organizations.map(org => {
     const orgTasks = tasks.filter(t => t.organization === org.value);
     const orgCompleted = orgTasks.filter(t => t.completed).length;
     const orgActive = orgTasks.filter(t => !t.completed).length;
@@ -968,12 +1587,33 @@ export default function DailyTaskManager() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className={`min-h-screen p-4 transition-colors ${
+      darkMode 
+        ? 'bg-gradient-to-br from-gray-900 to-gray-800' 
+        : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+    }`}>
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-6 pt-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Daily Task Manager</h1>
-          <p className="text-gray-600">Stay focused. Stay productive.</p>
+          <div className="flex items-center justify-center gap-4 mb-2">
+            <h1 className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              Daily Task Manager
+            </h1>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-2 rounded-lg transition-colors ${
+                darkMode 
+                  ? 'bg-gray-700 hover:bg-gray-600 text-yellow-300' 
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+              }`}
+              title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {darkMode ? '☀️' : '🌙'}
+            </button>
+          </div>
+          <p className={darkMode ? 'text-gray-300' : 'text-gray-600'}>
+            Stay focused. Stay productive.
+          </p>
           
           {/* View Toggle */}
           <div className="mt-4 flex justify-center gap-2 flex-wrap">
@@ -982,7 +1622,9 @@ export default function DailyTaskManager() {
               className={`px-6 py-2 rounded-lg font-medium transition-colors ${
                 !showProductivity
                   ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : darkMode 
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
               Tasks View
@@ -992,7 +1634,9 @@ export default function DailyTaskManager() {
               className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                 showProductivity
                   ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : darkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
               <Target className="w-4 h-4" />
@@ -1012,22 +1656,98 @@ export default function DailyTaskManager() {
               className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                 storageInfo.percentage > 80 
                   ? 'bg-orange-600 text-white animate-pulse' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : darkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
               💾 Storage {storageInfo.percentage > 0 && `(${Math.round(storageInfo.percentage)}%)`}
             </button>
           </div>
+
+          {/* Phase 2 Features Row */}
+          <div className="mt-3 flex justify-center gap-2 flex-wrap">
+            <button
+              onClick={() => setShowTodayView(!showTodayView)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                showTodayView
+                  ? 'bg-purple-600 text-white'
+                  : darkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              title="Focus on today's tasks (T)"
+            >
+              📅 Today View
+            </button>
+            <button
+              onClick={() => setShowPomodoro(!showPomodoro)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                showPomodoro
+                  ? 'bg-red-600 text-white'
+                  : darkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              title="Pomodoro timer (P)"
+            >
+              🍅 Pomodoro
+            </button>
+            <button
+              onClick={() => setShowKeyboardShortcuts(true)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                darkMode
+                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              title="Keyboard shortcuts (?)"
+            >
+              ⌨️ Shortcuts
+            </button>
+          </div>
+
+          {/* Search Bar */}
+          <div className="mt-4 max-w-2xl mx-auto">
+            <div className="relative">
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="🔍 Search tasks... (Press / to focus)"
+                className={`w-full px-4 py-3 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'
+                }`}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm ${
+                    darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+            {searchQuery && (
+              <div className={`mt-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Found {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} matching "{searchQuery}"
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Notification Settings */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div className={`rounded-lg shadow-md p-4 mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <Bell className={`w-5 h-5 ${notificationsEnabled ? 'text-green-600' : 'text-gray-400'}`} />
+              <Bell className={`w-5 h-5 ${notificationsEnabled ? 'text-green-600' : darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
               <div>
-                <div className="font-semibold text-gray-800">Smart Reminders</div>
-                <div className="text-sm text-gray-600">
+                <div className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  Smart Reminders & Automation
+                </div>
+                <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                   {notificationsEnabled ? 'Notifications enabled' : 'Get reminded to add tasks and close stale ones'}
                 </div>
               </div>
@@ -1035,12 +1755,16 @@ export default function DailyTaskManager() {
             <div className="flex items-center gap-3 flex-wrap">
               {notificationsEnabled && (
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-600">Morning reminder:</label>
+                  <label className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Morning reminder:
+                  </label>
                   <input
                     type="time"
                     value={morningReminderTime}
                     onChange={(e) => setMorningReminderTime(e.target.value)}
-                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`px-3 py-1 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'
+                    }`}
                   />
                 </div>
               )}
@@ -1049,12 +1773,50 @@ export default function DailyTaskManager() {
                 disabled={notificationsEnabled}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   notificationsEnabled
-                    ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                    ? 'bg-green-100 text-green-700 cursor-not-allowed dark:bg-green-900 dark:text-green-200'
                     : 'bg-blue-600 hover:bg-blue-700 text-white'
                 }`}
               >
                 {notificationsEnabled ? '✓ Enabled' : 'Enable Reminders'}
               </button>
+            </div>
+          </div>
+
+          {/* Weekly Cleanup Setting */}
+          <div className={`mt-4 pt-4 ${darkMode ? 'border-t border-gray-700' : 'border-t border-gray-200'}`}>
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <div className="text-2xl">🧹</div>
+                <div>
+                  <div className="font-semibold text-gray-800">Weekly Cleanup</div>
+                  <div className="text-sm text-gray-600">
+                    Automatically archive completed tasks every Monday
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {lastCleanupDate && (
+                  <div className="text-xs text-gray-500">
+                    Last: {new Date(lastCleanupDate).toLocaleDateString()}
+                  </div>
+                )}
+                <button
+                  onClick={manualWeeklyCleanup}
+                  className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Clean Up Now
+                </button>
+                <button
+                  onClick={() => setWeeklyCleanupEnabled(!weeklyCleanupEnabled)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    weeklyCleanupEnabled
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  {weeklyCleanupEnabled ? '✓ Auto-Cleanup ON' : 'Auto-Cleanup OFF'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1462,7 +2224,24 @@ export default function DailyTaskManager() {
         </div>
 
         {/* Add Task Form */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className={`rounded-lg shadow-md p-6 mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              Add New Task
+            </h3>
+            <button
+              onClick={() => setShowOrgManager(true)}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                darkMode 
+                  ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' 
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+              }`}
+            >
+              <Edit2 className="w-4 h-4" />
+              Manage Organizations
+            </button>
+          </div>
+
           <form onSubmit={addTask} className="space-y-4">
             <div className="flex gap-2">
               <input
@@ -1470,7 +2249,9 @@ export default function DailyTaskManager() {
                 value={newTask}
                 onChange={(e) => setNewTask(e.target.value)}
                 placeholder="What do you need to accomplish today?"
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`flex-1 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'
+                }`}
               />
               <button
                 type="submit"
@@ -1484,21 +2265,25 @@ export default function DailyTaskManager() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Organization Selector */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Organization/Project</label>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Organization/Project
+                </label>
                 <select
                   value={newTaskOrg}
                   onChange={(e) => setNewTaskOrg(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'
+                  }`}
                 >
                   <optgroup label="Work Organizations">
-                    {ORGANIZATIONS.filter(o => o.type === 'work').map(org => (
+                    {organizations.filter(o => o.type === 'work').map(org => (
                       <option key={org.value} value={org.value}>
                         {org.label}
                       </option>
                     ))}
                   </optgroup>
                   <optgroup label="Personal Projects">
-                    {ORGANIZATIONS.filter(o => o.type === 'personal').map(org => (
+                    {organizations.filter(o => o.type === 'personal').map(org => (
                       <option key={org.value} value={org.value}>
                         {org.label}
                       </option>
@@ -1509,8 +2294,10 @@ export default function DailyTaskManager() {
 
               {/* Task Type Selector */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Task Type</label>
-                <div className="grid grid-cols-2 gap-2">
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Task Type
+                </label>
+                <div className="grid grid-cols-3 gap-2">
                   {TASK_TYPES.map(type => {
                     const Icon = type.icon;
                     return (
@@ -1520,7 +2307,7 @@ export default function DailyTaskManager() {
                         onClick={() => setNewTaskType(type.value)}
                         className={getTypeButtonClasses(type.color, newTaskType === type.value)}
                       >
-                        <Icon className="w-5 h-5" />
+                        <Icon className="w-4 h-4" />
                         <span className="text-xs font-medium">{type.label.split(' ')[0]}</span>
                       </button>
                     );
@@ -1530,11 +2317,15 @@ export default function DailyTaskManager() {
 
               {/* Task Size Selector */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Estimated Size</label>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Estimated Size
+                </label>
                 <select
                   value={newTaskSize}
                   onChange={(e) => setNewTaskSize(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'
+                  }`}
                 >
                   {TASK_SIZES.map(size => (
                     <option key={size.value} value={size.value}>
@@ -1544,18 +2335,129 @@ export default function DailyTaskManager() {
                 </select>
               </div>
             </div>
+
+            {/* Scheduled Time (for meetings) */}
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Scheduled Time (optional - for meetings)
+                </label>
+                <input
+                  type="time"
+                  value={newTaskTime}
+                  onChange={(e) => setNewTaskTime(e.target.value)}
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'
+                  }`}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMeetingTemplates(true)}
+                className="mt-6 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+              >
+                <Users className="w-4 h-4" />
+                Meeting Templates
+              </button>
+            </div>
+
+            {/* Priority, Tags, and Recurrence */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              {/* Priority Selector */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Priority Level
+                </label>
+                <div className="flex gap-2">
+                  {PRIORITY_LEVELS.map(priority => (
+                    <button
+                      key={priority.value}
+                      type="button"
+                      onClick={() => setNewTaskPriority(priority.value)}
+                      className={`flex-1 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium ${
+                        newTaskPriority === priority.value
+                          ? priority.value === 'high' ? 'border-red-500 bg-red-50 text-red-700 dark:bg-red-900 dark:text-red-200' :
+                            priority.value === 'medium' ? 'border-yellow-500 bg-yellow-50 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200' :
+                            'border-green-500 bg-green-50 text-green-700 dark:bg-green-900 dark:text-green-200'
+                          : darkMode ? 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      {priority.icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tags Multi-Select */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Tags (select multiple)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowTagManager(true)}
+                    className={`text-xs px-2 py-1 rounded ${
+                      darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    }`}
+                  >
+                    Manage
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {availableTags.slice(0, 4).map(tag => (
+                    <label
+                      key={tag.value}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border cursor-pointer transition-all text-xs ${
+                        newTaskTags.includes(tag.value)
+                          ? `border-${tag.color}-500 bg-${tag.color}-50 text-${tag.color}-700 dark:bg-${tag.color}-900 dark:text-${tag.color}-200`
+                          : darkMode ? 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={newTaskTags.includes(tag.value)}
+                        onChange={() => toggleTaskTag(tag.value)}
+                        className="w-3 h-3"
+                      />
+                      {tag.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recurrence Selector */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Recurrence
+                </label>
+                <select
+                  value={newTaskRecurrence}
+                  onChange={(e) => setNewTaskRecurrence(e.target.value)}
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'
+                  }`}
+                >
+                  {RECURRENCE_PATTERNS.map(pattern => (
+                    <option key={pattern.value} value={pattern.value}>
+                      {pattern.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </form>
         </div>
 
         {/* Filter Tabs */}
-        <div className="bg-white rounded-lg shadow-md mb-4">
-          <div className="flex border-b border-gray-200">
+        <div className={`rounded-lg shadow-md mb-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className={`flex ${darkMode ? 'border-b border-gray-700' : 'border-b border-gray-200'}`}>
             <button
               onClick={() => setFilter('all')}
               className={`flex-1 py-3 px-4 font-medium transition-colors ${
                 filter === 'all'
                   ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
+                  : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'
               }`}
             >
               All ({stats.total})
@@ -1565,7 +2467,7 @@ export default function DailyTaskManager() {
               className={`flex-1 py-3 px-4 font-medium transition-colors ${
                 filter === 'active'
                   ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
+                  : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'
               }`}
             >
               Active ({stats.active})
@@ -1575,7 +2477,7 @@ export default function DailyTaskManager() {
               className={`flex-1 py-3 px-4 font-medium transition-colors ${
                 filter === 'completed'
                   ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
+                  : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'
               }`}
             >
               Completed ({stats.completed})
@@ -1584,9 +2486,11 @@ export default function DailyTaskManager() {
         </div>
 
         {/* Organization Filter */}
-        <div className="bg-white rounded-lg shadow-md mb-6">
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="font-semibold text-gray-800 mb-3">Filter by Organization/Project</h3>
+        <div className={`rounded-lg shadow-md mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className={`p-4 ${darkMode ? 'border-b border-gray-700' : 'border-b border-gray-200'}`}>
+            <h3 className={`font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              Filter by Organization/Project
+            </h3>
             
             <div className="space-y-3">
               {/* All Organizations */}
@@ -1681,16 +2585,61 @@ export default function DailyTaskManager() {
           </div>
         </div>
 
+        {/* Priority and Tag Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Priority Filter */}
+          <div className={`rounded-lg shadow-md p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <label className={`block text-sm font-semibold mb-2 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+              Filter by Priority
+            </label>
+            <select
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'
+              }`}
+            >
+              <option value="all">All Priorities</option>
+              {PRIORITY_LEVELS.map(p => (
+                <option key={p.value} value={p.value}>
+                  {p.icon} {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tag Filter */}
+          <div className={`rounded-lg shadow-md p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <label className={`block text-sm font-semibold mb-2 ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+              Filter by Tag
+            </label>
+            <select
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value)}
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'
+              }`}
+            >
+              <option value="all">All Tags</option>
+              {availableTags.map(tag => (
+                <option key={tag.value} value={tag.value}>
+                  {tag.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         {/* Task List */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
+        <div className={`rounded-lg shadow-md overflow-hidden mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
           {filteredTasks.length === 0 ? (
-            <div className="p-12 text-center text-gray-500">
+            <div className={`p-12 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               {filter === 'all' && 'No tasks yet. Add your first task above!'}
               {filter === 'active' && 'No active tasks. Great job! 🎉'}
               {filter === 'completed' && 'No completed tasks yet. Keep going!'}
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
+            <div className={darkMode ? 'divide-y divide-gray-700' : 'divide-y divide-gray-200'}>
               {filteredTasks.map((task) => {
                 const elapsedTime = getElapsedTime(task);
                 const taskAge = getTaskAge(task);
@@ -1703,13 +2652,17 @@ export default function DailyTaskManager() {
                 return (
                   <div
                     key={task.id}
-                    className={`p-4 hover:bg-gray-50 transition-colors group ${
-                      isStale ? 'bg-orange-50 border-l-4 border-orange-400' : ''
+                    className={`p-4 transition-colors group ${
+                      darkMode ? 'hover:bg-gray-750' : 'hover:bg-gray-50'
+                    } ${
+                      isStale && !task.completed ? (darkMode ? 'bg-orange-900/20 border-l-4 border-orange-600' : 'bg-orange-50 border-l-4 border-orange-400') : ''
                     }`}
                   >
                     {/* Stale Task Warning */}
                     {isStale && (
-                      <div className="mb-3 flex items-center gap-2 text-orange-700 text-sm font-medium">
+                      <div className={`mb-3 flex items-center gap-2 text-sm font-medium ${
+                        darkMode ? 'text-orange-400' : 'text-orange-700'
+                      }`}>
                         <AlertCircle className="w-4 h-4" />
                         <span>Open for {Math.floor(taskAge)} days - Consider breaking down or closing</span>
                       </div>
@@ -1718,7 +2671,9 @@ export default function DailyTaskManager() {
                     <div className="flex items-start gap-3">
                       <button
                         onClick={() => toggleTask(task.id)}
-                        className="flex-shrink-0 text-gray-400 hover:text-blue-600 transition-colors mt-1"
+                        className={`flex-shrink-0 transition-colors mt-1 ${
+                          darkMode ? 'text-gray-500 hover:text-blue-400' : 'text-gray-400 hover:text-blue-600'
+                        }`}
                       >
                         {task.completed ? (
                           <CheckCircle2 className="w-6 h-6 text-green-600" />
@@ -1733,8 +2688,8 @@ export default function DailyTaskManager() {
                           <span
                             className={`text-lg ${
                               task.completed
-                                ? 'line-through text-gray-400'
-                                : 'text-gray-800'
+                                ? darkMode ? 'line-through text-gray-500' : 'line-through text-gray-400'
+                                : darkMode ? 'text-white' : 'text-gray-800'
                             }`}
                           >
                             {task.text}
@@ -1761,9 +2716,48 @@ export default function DailyTaskManager() {
                           </span>
                           
                           {/* Size Badge */}
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                          }`}>
                             {sizeInfo.label.split(' ')[0]}
                           </span>
+
+                          {/* Priority Badge */}
+                          {task.priority && (
+                            <span className={getPriorityBadgeClasses(task.priority)}>
+                              {PRIORITY_LEVELS.find(p => p.value === task.priority)?.icon}
+                              {PRIORITY_LEVELS.find(p => p.value === task.priority)?.label.split(' ')[0]}
+                            </span>
+                          )}
+
+                          {/* Tag Badges */}
+                          {task.tags && task.tags.length > 0 && (
+                            <>
+                              {task.tags.slice(0, 2).map(tagValue => {
+                                const tag = availableTags.find(t => t.value === tagValue);
+                                if (!tag) return null;
+                                return (
+                                  <span key={tagValue} className={getTagBadgeClasses(tag.color)}>
+                                    {tag.label}
+                                  </span>
+                                );
+                              })}
+                              {task.tags.length > 2 && (
+                                <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  +{task.tags.length - 2} more
+                                </span>
+                              )}
+                            </>
+                          )}
+
+                          {/* Recurrence Indicator */}
+                          {task.recurrence && task.recurrence !== 'none' && (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                              darkMode ? 'bg-blue-900 text-blue-200 border border-blue-700' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                            }`}>
+                              🔄 {RECURRENCE_PATTERNS.find(r => r.value === task.recurrence)?.label.split(' (')[0]}
+                            </span>
+                          )}
                         </div>
                         
                         {/* Time Info */}
@@ -1778,6 +2772,11 @@ export default function DailyTaskManager() {
                             </span>
                             {task.isTimerRunning && (
                               <span className="inline-block w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
+                            )}
+                            {task.scheduledTime && (
+                              <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs font-semibold">
+                                📅 {task.scheduledTime}
+                              </span>
                             )}
                           </div>
 
@@ -1826,17 +2825,26 @@ export default function DailyTaskManager() {
                       {!task.completed && (
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {!task.isTimerRunning ? (
-                            <button
-                              onClick={() => startTimer(task.id)}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Start Timer"
-                            >
-                              <Play className="w-5 h-5" />
-                            </button>
+                            <>
+                              <button
+                                onClick={() => startTimer(task.id)}
+                                className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900 rounded-lg transition-colors"
+                                title="Start Timer"
+                              >
+                                <Play className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => startPomodoro(task.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded-lg transition-colors"
+                                title="Start Pomodoro with this task"
+                              >
+                                🍅
+                              </button>
+                            </>
                           ) : (
                             <button
                               onClick={() => pauseTimer(task.id)}
-                              className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
+                              className="p-2 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900 rounded-lg transition-colors"
                               title="Pause Timer"
                             >
                               <Pause className="w-5 h-5" />
@@ -1845,7 +2853,7 @@ export default function DailyTaskManager() {
                           
                           <button
                             onClick={() => stopTimer(task.id)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900 rounded-lg transition-colors"
                             title="Complete Task"
                           >
                             <Square className="w-5 h-5" />
@@ -1853,14 +2861,27 @@ export default function DailyTaskManager() {
                         </div>
                       )}
 
+                      {/* Notes Button */}
+                      <button
+                        onClick={() => setEditingTaskNotes(task.id)}
+                        className={`flex-shrink-0 p-2 rounded-lg transition-colors ${
+                          task.notes 
+                            ? darkMode ? 'text-blue-400 hover:bg-blue-900' : 'text-blue-600 hover:bg-blue-50'
+                            : darkMode ? 'text-gray-500 hover:bg-gray-700' : 'text-gray-400 hover:bg-gray-50'
+                        }`}
+                        title={task.notes ? 'Edit notes' : 'Add notes'}
+                      >
+                        📝
+                      </button>
+
                       {/* Quality Rating Button */}
                       {task.completed && (
                         <button
                           onClick={() => setSelectedTaskForRating(task.id)}
                           className={`flex-shrink-0 p-2 rounded-lg transition-colors ${
                             task.qualityRating === 'unrated'
-                              ? 'text-orange-600 hover:bg-orange-50 animate-pulse'
-                              : 'text-yellow-600 hover:bg-yellow-50'
+                              ? 'text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900 animate-pulse'
+                              : 'text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900'
                           }`}
                           title={task.qualityRating === 'unrated' ? 'Rate Quality' : 'Update Rating'}
                         >
@@ -1870,11 +2891,76 @@ export default function DailyTaskManager() {
                       
                       <button
                         onClick={() => deleteTask(task.id)}
-                        className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                        className={`flex-shrink-0 transition-colors opacity-0 group-hover:opacity-100 ${
+                          darkMode ? 'text-gray-500 hover:text-red-400' : 'text-gray-400 hover:text-red-600'
+                        }`}
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
+
+                    {/* Task Notes Display */}
+                    {task.notes && editingTaskNotes !== task.id && (
+                      <div className={`mt-3 p-3 rounded-lg ${
+                        darkMode ? 'bg-gray-700 border border-gray-600' : 'bg-blue-50 border border-blue-200'
+                      }`}>
+                        <div className={`text-xs font-semibold mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          📝 Notes:
+                        </div>
+                        <div className={`text-sm whitespace-pre-wrap ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {task.notes}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Task Notes Editor */}
+                    {editingTaskNotes === task.id && (
+                      <div className={`mt-3 p-3 rounded-lg ${
+                        darkMode ? 'bg-gray-700 border-2 border-blue-500' : 'bg-blue-50 border-2 border-blue-400'
+                      }`}>
+                        <div className={`text-xs font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          📝 Task Notes:
+                        </div>
+                        <textarea
+                          defaultValue={task.notes || ''}
+                          placeholder="Add context, links, debugging notes, etc..."
+                          className={`w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                            darkMode ? 'bg-gray-600 border-gray-500 text-white placeholder-gray-400' : 'border-gray-300'
+                          }`}
+                          rows={4}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setEditingTaskNotes(null);
+                            }
+                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                              updateTaskNotes(task.id, e.target.value);
+                            }
+                          }}
+                        />
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={(e) => {
+                              const textarea = e.target.parentElement.previousElementSibling;
+                              updateTaskNotes(task.id, textarea.value);
+                            }}
+                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingTaskNotes(null)}
+                            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                              darkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                            }`}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        <div className={`text-xs mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          Press Cmd/Ctrl + Enter to save, Esc to cancel
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1935,6 +3021,262 @@ export default function DailyTaskManager() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Meeting Templates Modal */}
+        {showMeetingTemplates && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-800">📅 Meeting Templates</h3>
+                <button
+                  onClick={() => setShowMeetingTemplates(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-4">
+                Quick add common meetings to your schedule. Selected organization: <strong>{getOrgInfo(newTaskOrg).label}</strong>
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {MEETING_TEMPLATES.map((template, index) => (
+                  <button
+                    key={index}
+                    onClick={() => addMeetingFromTemplate(template)}
+                    className="p-4 border-2 border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-all text-left"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="font-semibold text-gray-900">{template.label}</div>
+                      <Users className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      <div>🕐 {template.time}</div>
+                      <div>⏱️ {template.duration}h duration</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
+                <strong>💡 Tip:</strong> Meetings are tracked separately in analytics. They count toward your work hours but are highlighted as meetings.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Organization Manager Modal */}
+        {showOrgManager && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full p-6 my-8">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-800">🏢 Manage Organizations</h3>
+                <button
+                  onClick={() => setShowOrgManager(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Add New Organization */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="font-semibold text-gray-800 mb-3">Add New Organization</h4>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <input
+                    type="text"
+                    value={newOrgData.label}
+                    onChange={(e) => setNewOrgData({...newOrgData, label: e.target.value})}
+                    placeholder="Organization name"
+                    className="md:col-span-2 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <select
+                    value={newOrgData.type}
+                    onChange={(e) => setNewOrgData({...newOrgData, type: e.target.value})}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="work">Work</option>
+                    <option value="personal">Personal</option>
+                  </select>
+                  <select
+                    value={newOrgData.color}
+                    onChange={(e) => setNewOrgData({...newOrgData, color: e.target.value})}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="blue">Blue</option>
+                    <option value="indigo">Indigo</option>
+                    <option value="cyan">Cyan</option>
+                    <option value="purple">Purple</option>
+                    <option value="pink">Pink</option>
+                    <option value="emerald">Emerald</option>
+                    <option value="green">Green</option>
+                    <option value="orange">Orange</option>
+                    <option value="red">Red</option>
+                    <option value="yellow">Yellow</option>
+                  </select>
+                </div>
+                <button
+                  onClick={addOrganization}
+                  className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Organization
+                </button>
+              </div>
+
+              {/* Existing Organizations */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-gray-800">Your Organizations</h4>
+                  <button
+                    onClick={resetOrganizations}
+                    className="text-sm text-gray-600 hover:text-gray-800"
+                  >
+                    Reset to Defaults
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {organizations.map(org => (
+                    <div key={org.value} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {React.createElement(org.icon, { className: "w-5 h-5 text-gray-600" })}
+                        <div>
+                          <div className="font-medium text-gray-900">{org.label}</div>
+                          <div className="text-sm text-gray-600">
+                            {org.type === 'work' ? 'Work' : 'Personal'} • {org.color}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={getOrgBadgeClasses(org.color)}>
+                          Preview
+                        </span>
+                        <button
+                          onClick={() => deleteOrganization(org.value)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="text-sm text-yellow-900">
+                  <strong>⚠️ Note:</strong> Deleting an organization won't delete your tasks. 
+                  Tasks from deleted organizations will show as "unassigned" in reports.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tag Manager Modal */}
+        {showTagManager && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className={`rounded-lg shadow-xl max-w-3xl w-full p-6 my-8 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  🏷️ Manage Tags
+                </h3>
+                <button
+                  onClick={() => setShowTagManager(false)}
+                  className={`${darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Add New Tag */}
+              <div className={`rounded-lg p-4 mb-6 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                <h4 className={`font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  Add New Tag
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <input
+                    type="text"
+                    value={newTagData.label}
+                    onChange={(e) => setNewTagData({...newTagData, label: e.target.value})}
+                    placeholder="Tag name (e.g., High Priority)"
+                    className={`md:col-span-2 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      darkMode ? 'bg-gray-600 border-gray-500 text-white placeholder-gray-400' : 'border-gray-300'
+                    }`}
+                  />
+                  <select
+                    value={newTagData.color}
+                    onChange={(e) => setNewTagData({...newTagData, color: e.target.value})}
+                    className={`px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'border-gray-300'
+                    }`}
+                  >
+                    <option value="blue">Blue</option>
+                    <option value="red">Red</option>
+                    <option value="orange">Orange</option>
+                    <option value="purple">Purple</option>
+                    <option value="green">Green</option>
+                    <option value="gray">Gray</option>
+                  </select>
+                </div>
+                <button
+                  onClick={addTag}
+                  className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Tag
+                </button>
+              </div>
+
+              {/* Existing Tags */}
+              <div>
+                <h4 className={`font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  Your Tags
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {availableTags.map(tag => (
+                    <div 
+                      key={tag.value} 
+                      className={`flex items-center justify-between p-3 rounded-lg ${
+                        darkMode ? 'bg-gray-700' : 'bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full bg-${tag.color}-500`}></div>
+                        <span className={darkMode ? 'text-white' : 'text-gray-900'}>
+                          {tag.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={getTagBadgeClasses(tag.color)}>
+                          Preview
+                        </span>
+                        <button
+                          onClick={() => deleteTag(tag.value)}
+                          className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className={`mt-6 rounded-lg p-4 ${
+                darkMode ? 'bg-blue-900 border border-blue-700' : 'bg-blue-50 border border-blue-200'
+              }`}>
+                <div className={`text-sm ${darkMode ? 'text-blue-200' : 'text-blue-900'}`}>
+                  <strong>💡 Pro Tip:</strong> Tags help you categorize tasks across organizations. 
+                  Use "Urgent" for time-sensitive work, "Blocked" for tasks waiting on others, 
+                  "Review Needed" for code reviews, etc.
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -2041,6 +3383,150 @@ export default function DailyTaskManager() {
                 <div className="text-sm text-yellow-900">
                   <strong>💡 Tip:</strong> Completed tasks are kept visible for 7 days before auto-archiving. 
                   Generate your weekly summary on Friday to capture all your work!
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pomodoro Timer Widget */}
+        {showPomodoro && (
+          <div className="fixed bottom-6 right-6 z-40">
+            <div className={`rounded-lg shadow-2xl p-6 w-80 ${
+              darkMode ? 'bg-gray-800 border-2 border-gray-700' : 'bg-white border-2 border-gray-200'
+            }`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`font-bold text-lg flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  🍅 Pomodoro
+                </h3>
+                <button
+                  onClick={() => setShowPomodoro(false)}
+                  className={`text-sm ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Mode Badge */}
+              <div className="mb-4 text-center">
+                <span className={`inline-block px-4 py-2 rounded-full text-sm font-semibold ${
+                  pomodoroMode === 'focus' 
+                    ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200'
+                    : pomodoroMode === 'shortBreak'
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200'
+                      : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
+                }`}>
+                  {pomodoroMode === 'focus' ? '🎯 Focus Time' : 
+                   pomodoroMode === 'shortBreak' ? '☕ Short Break' : 
+                   '🌟 Long Break'}
+                </span>
+              </div>
+
+              {/* Timer Display */}
+              <div className={`text-center mb-6 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                <div className="text-5xl font-bold font-mono">
+                  {formatPomodoroTime(pomodoroTime)}
+                </div>
+                <div className={`text-sm mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Session {pomodoroSessions + 1} • {POMODORO_SETTINGS.focus} min focus
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => pomodoroRunning ? pausePomodoro() : startPomodoro()}
+                  className={`flex-1 py-3 rounded-lg font-medium transition-colors ${
+                    pomodoroRunning
+                      ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                      : 'bg-green-600 hover:bg-green-700 text-white'
+                  }`}
+                >
+                  {pomodoroRunning ? '⏸ Pause' : '▶ Start'}
+                </button>
+                <button
+                  onClick={resetPomodoro}
+                  className="px-4 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+                >
+                  ↻ Reset
+                </button>
+                <button
+                  onClick={skipPomodoroPhase}
+                  className="px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
+                  title="Skip to next phase"
+                >
+                  ⏭
+                </button>
+              </div>
+
+              {/* Active Task */}
+              {activePomodoroTask && (
+                <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <div className={`text-xs font-semibold mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Working on:
+                  </div>
+                  <div className={`text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    {tasks.find(t => t.id === activePomodoroTask)?.text}
+                  </div>
+                </div>
+              )}
+
+              {/* Settings */}
+              <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <div>Focus: {POMODORO_SETTINGS.focus} min</div>
+                  <div>Short break: {POMODORO_SETTINGS.shortBreak} min</div>
+                  <div>Long break: {POMODORO_SETTINGS.longBreak} min</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Keyboard Shortcuts Modal */}
+        {showKeyboardShortcuts && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-lg shadow-xl max-w-2xl w-full p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  ⌨️ Keyboard Shortcuts
+                </h3>
+                <button
+                  onClick={() => setShowKeyboardShortcuts(false)}
+                  className={`${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {KEYBOARD_SHORTCUTS.map((shortcut, index) => (
+                  <div 
+                    key={index}
+                    className={`flex items-center justify-between p-3 rounded-lg ${
+                      darkMode ? 'bg-gray-700' : 'bg-gray-50'
+                    }`}
+                  >
+                    <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
+                      {shortcut.description}
+                    </span>
+                    <kbd className={`px-3 py-1 rounded font-mono text-sm font-semibold ${
+                      darkMode 
+                        ? 'bg-gray-600 text-white border border-gray-500'
+                        : 'bg-white text-gray-800 border border-gray-300 shadow-sm'
+                    }`}>
+                      {shortcut.key}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+
+              <div className={`mt-6 p-4 rounded-lg ${
+                darkMode ? 'bg-blue-900 border border-blue-700' : 'bg-blue-50 border border-blue-200'
+              }`}>
+                <div className={`text-sm ${darkMode ? 'text-blue-200' : 'text-blue-900'}`}>
+                  <strong>💡 Pro Tip:</strong> These shortcuts work when you're not typing in an input field. 
+                  Press <kbd className="px-2 py-1 bg-blue-100 dark:bg-blue-800 rounded text-xs font-mono">Esc</kbd> to close any modal or cancel input.
                 </div>
               </div>
             </div>

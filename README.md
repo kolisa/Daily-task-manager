@@ -8,23 +8,41 @@ A comprehensive productivity system for Senior Software Engineers and Technical 
 
 ## Perfect For
 
-- **Multiple Organizations**: Track tasks for Web Africa, LexisNexis, and other clients
+- **Multiple Organizations**: Track tasks for Web Africa, LexisNexis, TUT, and other clients
 - **Personal Projects**: Manage spare-time projects like Bhukuveni, Khoi, and Nowmail
+- **Meeting Tracking**: Daily standups, sprint planning, story points confirmation
 - **Quality Engineering**: Measure work quality using software engineering standards
 - **Weekly Planning**: Monitor your 42-hour work week target
 - **Continuous Learning**: Track upskilling through online courses and mentorship
 - **Data-Driven Improvement**: Get insights based on your actual performance
+- **Custom Organizations**: Add and manage your own organizations/clients dynamically
 
 ## Features
 
 ### ✅ Core Task Management
 - Add and manage daily tasks with detailed categorization
-- 🏢 **Multi-Organization Support**: Track tasks for multiple work organizations
+- 🏢 **Multi-Organization Support**: Track tasks for multiple work organizations (Web Africa, LexisNexis, TUT)
 - 💼 **Personal Project Tracking**: Separate work from personal spare-time projects
 - 📊 **Per-Organization Statistics**: See time spent and progress for each organization
-- 🏷️ **Task Types**: Feature Development, Bug Fixes, Support/Small Tasks, **Learning/Upskilling**
+- 🏷️ **Task Types**: Feature Development, Bug Fixes, Support/Small Tasks, Learning/Upskilling, **Meetings**
+- 📅 **Meeting Tracking**: Daily standups, sprint planning, story points confirmation with scheduled times
 - 📏 **Size Estimation**: From XS (< 1h) to XXL (2+ days)
 - ⏱️ **Advanced Time Tracking** with start/pause/stop controls
+- 🎛️ **Organization Manager**: Add, edit, and delete custom organizations dynamically
+
+### 📅 Meeting Management
+- **Meeting Task Type**: Dedicated category for all meetings
+- **Meeting Templates**: Quick-add common meetings:
+  - Daily Standup (15 min, 9:00 AM)
+  - Sprint Planning (2h, 10:00 AM)
+  - Sprint Review (1h, 2:00 PM)
+  - Sprint Retrospective (1h, 3:00 PM)
+  - Story Points Confirmation (30 min, 11:00 AM)
+  - Tech Review (1h, 1:00 PM)
+  - 1-on-1 (30 min, 4:00 PM)
+- **Scheduled Time Display**: Shows meeting time on task card
+- **Meeting Analytics**: Track meeting time separately in productivity dashboard
+- **Custom Meeting Times**: Set any time for meetings
 
 ### 📈 Productivity Analytics
 - **Two Views**: Tasks View and Productivity Analytics Dashboard
@@ -50,6 +68,15 @@ A comprehensive productivity system for Senior Software Engineers and Technical 
 - Morning reminders to plan your day (customizable time)
 - Automatic alerts for stale tasks (open 2+ days)
 - Reminder to rate completed tasks for better analytics
+
+### 🧹 Weekly Auto-Cleanup
+- **Automatic Monday Cleanup**: Archives completed tasks every Monday morning
+- **Fresh Weekly Start**: Begin each week with a clean slate
+- **Manual Trigger**: "Clean Up Now" button for anytime cleanup
+- **Toggle On/Off**: Enable or disable auto-cleanup
+- **Last Cleanup Tracking**: See when the last cleanup occurred
+- **Notification**: Get notified when cleanup completes
+- **Safe Archiving**: Completed tasks archived, not deleted (still in analytics)
 
 ### 💡 AI-Powered Insights
 - Automatic recommendations based on your performance
@@ -212,6 +239,430 @@ As a senior engineer, continuous learning is crucial. The system tracks your lea
 - Technical books and documentation
 - Conference talks and workshops
 - Experimenting with new technologies
+
+### 🏢 Organization Manager
+
+**Dynamic Organization Management:**
+Click "Manage Organizations" button in the task form to add, edit, or remove organizations.
+
+**Add New Organization:**
+```
+1. Click "Manage Organizations"
+2. Enter organization name (e.g., "Client ABC")
+3. Select type: Work or Personal
+4. Choose color: Blue, Indigo, Cyan, Purple, Pink, Emerald, etc.
+5. Click "Add Organization"
+→ Available immediately in dropdown!
+```
+
+**Default Organizations:**
+- **Web Africa** (Work - Blue)
+- **LexisNexis** (Work - Indigo)
+- **TUT** - Tshwane University of Technology (Work - Cyan)
+- **Bhukuveni** (Personal - Purple)
+- **Khoi** (Personal - Pink)
+- **Nowmail** (Personal - Emerald)
+
+**Organization Features:**
+- Add unlimited custom organizations
+- Color-coded badges for visual identification
+- Work vs Personal categorization
+- Delete organizations (tasks remain, show as "unassigned")
+- Reset to defaults anytime
+- Persist across browser sessions
+
+**Use Cases:**
+```
+Multiple Clients:
+  → Add each client as separate organization
+  → Track time per client accurately
+  → Generate client-specific reports
+
+Consulting Work:
+  → Add clients: ClientA, ClientB, ClientC
+  → Bill accurately with time tracking
+  → See work distribution
+
+Freelancing:
+  → Add projects as organizations
+  → Track spare-time side projects
+  → Separate from main employment
+```
+
+### 📅 Meeting Tracking System
+
+**Why Track Meetings?**
+Meetings are a significant part of a senior engineer's time but often untracked. This leads to:
+- ❌ Underestimating actual work hours
+- ❌ Missing time in productivity reports
+- ❌ Incomplete sprint velocity
+- ❌ Billing inaccuracies
+
+**Meeting as Task Type:**
+Select "Meeting" when creating a task to access meeting-specific features.
+
+**Quick-Add Meeting Templates:**
+Click "Meeting Templates" button to access common meetings:
+
+| Meeting Type | Default Duration | Default Time | Description |
+|-------------|------------------|--------------|-------------|
+| Daily Standup | 15 min (0.25h) | 9:00 AM | Team sync |
+| Sprint Planning | 2 hours | 10:00 AM | Sprint kickoff |
+| Sprint Review | 1 hour | 2:00 PM | Demo to stakeholders |
+| Sprint Retrospective | 1 hour | 3:00 PM | Team reflection |
+| Story Points Confirmation | 30 min (0.5h) | 11:00 AM | Estimate alignment |
+| Tech Review | 1 hour | 1:00 PM | Architecture discussion |
+| 1-on-1 | 30 min (0.5h) | 4:00 PM | Manager sync |
+
+**Meeting Task Features:**
+```
+📅 Scheduled Time: Shows on task card (e.g., "📅 09:00")
+⏱️ Duration: Pre-filled based on template
+🏢 Organization: Assigned to current organization
+⏰ Time Tracking: Start/stop timer during meeting
+📊 Analytics: Counted in work hours separately
+```
+
+**How to Add a Meeting:**
+
+**Option 1: Quick Template**
+```
+1. Click "Meeting Templates"
+2. Select meeting type (e.g., "Daily Standup")
+3. Auto-fills:
+   - Task name: "Daily Standup"
+   - Type: Meeting
+   - Duration: 15 minutes
+   - Time: 09:00
+4. Added instantly!
+```
+
+**Option 2: Custom Meeting**
+```
+1. Type meeting name
+2. Select "Meeting" type
+3. Set scheduled time (optional)
+4. Estimate duration
+5. Add task
+```
+
+**Meeting Workflow:**
+```
+Before Meeting:
+  → Add from template (5 seconds)
+  → Shows in task list with time
+  → Visual reminder
+
+During Meeting:
+  → Click "Start" to track actual time
+  → Timer runs
+  → Compares to estimated duration
+
+After Meeting:
+  → Click "Complete"
+  → Actual duration recorded
+  → Can rate quality (productive vs waste of time)
+```
+
+**Meeting Analytics:**
+```
+Productivity Dashboard shows:
+  → Total meeting time (separate category)
+  → Meeting vs coding ratio
+  → Meeting efficiency (estimated vs actual)
+  → Identify meeting-heavy days
+```
+
+**Example Daily Schedule:**
+```
+09:00 - Daily Standup (📅 Meeting)
+09:15 - Feature: User Auth (💻 Work)
+11:00 - Story Points Confirmation (📅 Meeting)
+11:30 - Bug: Login timeout (🐛 Work)
+14:00 - Sprint Review (📅 Meeting)
+15:00 - Sprint Retrospective (📅 Meeting)
+16:00 - 1-on-1 with manager (📅 Meeting)
+```
+
+**Benefits:**
+- ✅ **Accurate Work Hours**: Include meeting time
+- ✅ **Better Planning**: Know your non-coding time
+- ✅ **Meeting Awareness**: See meeting overhead
+- ✅ **Billing Accuracy**: Bill clients for meeting time
+- ✅ **Complete Picture**: See total daily/weekly commitment
+
+**Meeting Best Practices:**
+```
+1. Add recurring meetings once per day
+2. Track actual duration (often differs!)
+3. Rate meeting quality (productive vs waste)
+4. Review weekly: Am I in too many meetings?
+5. Use data to optimize schedule
+```
+
+### 🧹 Weekly Auto-Cleanup System
+
+**The Problem:**
+Completed tasks accumulate over weeks and months, cluttering your workspace and slowing down the app. Manually cleaning up is tedious and easy to forget.
+
+**The Solution:**
+Automatic weekly cleanup that runs every Monday morning when you open the app.
+
+**How It Works:**
+
+**Automatic Cleanup (Mondays):**
+```
+Sunday Night → Go to sleep
+Monday Morning → Open app
+System checks:
+  → Is it Monday? Yes
+  → Last cleanup > 7 days ago? Yes
+  → Auto-cleanup enabled? Yes
+Action:
+  → Archive all completed tasks
+  → Keep active/incomplete tasks
+  → Update last cleanup date
+  → Show notification: "🧹 Archived 15 tasks. Fresh start!"
+```
+
+**What Gets Cleaned:**
+- ✅ All completed tasks (marked done)
+- ❌ Active/incomplete tasks (kept in main view)
+- ✅ Moved to archive (NOT deleted)
+- ✅ Still available in productivity analytics
+- ✅ Can be exported in data backup
+
+**Manual Cleanup:**
+```
+Click "Clean Up Now" button anytime:
+  → Confirmation dialog shows count
+  → Archives all completed tasks
+  → Instant fresh start
+  → Perfect for mid-week cleanup
+```
+
+**Settings Control:**
+
+**Enable/Disable:**
+```
+Toggle: "Auto-Cleanup ON/OFF"
+  → Green = Enabled (default)
+  → Gray = Disabled
+  → Saves preference
+  → Persists across sessions
+```
+
+**Last Cleanup Date:**
+```
+Shows: "Last: Jan 13, 2026"
+  → Track when you last cleaned up
+  → Know if it's been too long
+  → Verify auto-cleanup is working
+```
+
+**Why Monday?**
+- ✅ Start of work week
+- ✅ Fresh slate for new sprint
+- ✅ Weekend work gets cleaned
+- ✅ Aligns with weekly planning
+- ✅ Consistent schedule
+
+**Weekly Workflow:**
+
+**Friday EOD:**
+```
+1. Complete remaining tasks
+2. Generate weekly summary (📋 Work Summary)
+3. Copy to email/report
+4. Feel accomplished!
+```
+
+**Weekend:**
+```
+Optional:
+  → Work on personal projects
+  → Tasks tracked normally
+  → Will be cleaned Monday
+```
+
+**Monday Morning:**
+```
+1. Open app
+2. Auto-cleanup runs (if enabled)
+3. See notification: "🧹 Archived 18 tasks"
+4. Clean workspace!
+5. Add new week's tasks
+6. Start fresh sprint
+```
+
+**Benefits:**
+
+**Workspace Management:**
+- ✅ Clean task list every Monday
+- ✅ No manual cleanup needed
+- ✅ Consistent workspace state
+- ✅ Better app performance
+- ✅ Easier to focus on current work
+
+**Productivity:**
+- ✅ Fresh start each week
+- ✅ No clutter from old tasks
+- ✅ Clear separation of weeks
+- ✅ Easier weekly planning
+- ✅ Psychological "clean slate"
+
+**Data Preservation:**
+- ✅ Nothing deleted (archived only)
+- ✅ All data in analytics
+- ✅ Can export anytime
+- ✅ Historical records intact
+- ✅ Traceability maintained
+
+**Examples:**
+
+**Example 1: Normal Week**
+```
+Monday Jan 13, 9:00 AM:
+  → Open app
+  → Auto-cleanup runs
+  → Notification: "🧹 Archived 12 tasks from last week"
+  → See: Empty completed section
+  → Active tasks: Still there
+  → Ready for new week!
+```
+
+**Example 2: Disable Auto-Cleanup**
+```
+Prefer manual control:
+  → Toggle "Auto-Cleanup OFF"
+  → Tasks stay until you clean
+  → Use "Clean Up Now" when ready
+  → More control over timing
+```
+
+**Example 3: Mid-Week Cleanup**
+```
+Wednesday, cluttered workspace:
+  → Click "Clean Up Now"
+  → Confirm: "Archive 8 completed tasks?"
+  → Click Yes
+  → Instant cleanup
+  → Continue working
+```
+
+**Example 4: After Sprint**
+```
+Friday sprint end:
+  → Complete all sprint tasks
+  → Generate sprint summary
+  → Save/email report
+Monday new sprint:
+  → Auto-cleanup archives old sprint
+  → Fresh start for new sprint
+  → Perfect workflow!
+```
+
+**Notifications:**
+
+**Cleanup Notification:**
+```
+Title: "🧹 Weekly Cleanup Complete"
+Body: "Archived 15 completed tasks from last week. Fresh start for this week!"
+When: After auto-cleanup runs
+Requires: Notifications enabled
+```
+
+**Integration with Other Features:**
+
+**With Work Summary:**
+```
+Friday EOD:
+  1. Generate "This Week" summary
+  2. Copy to email
+  3. Send to manager
+Weekend:
+  (Tasks stay visible)
+Monday:
+  1. Auto-cleanup archives them
+  2. Fresh for new week
+```
+
+**With Analytics:**
+```
+Archived tasks:
+  ✅ Still counted in productivity score
+  ✅ Included in weekly metrics
+  ✅ Available in work summaries
+  ✅ Exported in backups
+  ✅ Never truly "deleted"
+```
+
+**With Storage:**
+```
+Auto-cleanup → Less active tasks
+Less active tasks → Better performance
+Archived tasks → Still exportable
+Balance → Optimal storage use
+```
+
+**Best Practices:**
+
+**Recommended Settings:**
+```
+Auto-Cleanup: ON (default)
+Last Cleanup: Visible
+Check: Each Monday
+Manual: Use mid-week if needed
+```
+
+**Weekly Routine:**
+```
+Monday AM:
+  → Let auto-cleanup run
+  → Review active tasks
+  → Plan week ahead
+  
+Friday PM:
+  → Generate summary
+  → Complete tasks
+  → Leave completed for cleanup
+
+Don't:
+  → Manually archive before summary
+  → Disable cleanup without reason
+  → Forget to enable notifications
+```
+
+**Troubleshooting:**
+
+**Cleanup Not Running?**
+```
+Check:
+  1. Is auto-cleanup ON?
+  2. Is it Monday?
+  3. Has it been 7+ days since last cleanup?
+  4. Are there completed tasks?
+
+Fix:
+  → Use "Clean Up Now" manually
+  → Check last cleanup date
+  → Toggle setting off/on
+```
+
+**Want Different Day?**
+```
+Current: Monday only
+Future: Settings for custom day
+Workaround: Use "Clean Up Now" on your preferred day
+```
+
+**Too Aggressive?**
+```
+Disable auto-cleanup
+Use manual cleanup weekly
+Set your own schedule
+Full control maintained
+```
 
 ### Productivity Analytics Dashboard 📊
 
