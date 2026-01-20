@@ -69,9 +69,20 @@ const RECURRENCE_PATTERNS = [
   { value: 'none', label: 'No Recurrence' },
   { value: 'daily', label: 'Daily (Every day)' },
   { value: 'weekdays', label: 'Weekdays (Mon-Fri)' },
+  { value: 'custom', label: 'Custom Days (Select specific days)' },
   { value: 'weekly', label: 'Weekly (Same day each week)' },
   { value: 'biweekly', label: 'Bi-weekly (Every 2 weeks)' },
   { value: 'monthly', label: 'Monthly (Same day each month)' }
+];
+
+const DAYS_OF_WEEK = [
+  { value: 1, label: 'Mon', full: 'Monday' },
+  { value: 2, label: 'Tue', full: 'Tuesday' },
+  { value: 3, label: 'Wed', full: 'Wednesday' },
+  { value: 4, label: 'Thu', full: 'Thursday' },
+  { value: 5, label: 'Fri', full: 'Friday' },
+  { value: 6, label: 'Sat', full: 'Saturday' },
+  { value: 0, label: 'Sun', full: 'Sunday' }
 ];
 
 const KEYBOARD_SHORTCUTS = [
@@ -106,6 +117,7 @@ export default function DailyTaskManager() {
   const [newTaskPriority, setNewTaskPriority] = useState('medium');
   const [newTaskTags, setNewTaskTags] = useState([]);
   const [newTaskRecurrence, setNewTaskRecurrence] = useState('none');
+  const [newTaskCustomDays, setNewTaskCustomDays] = useState([1, 2, 3, 4, 5]); // Default: weekdays
   const [filter, setFilter] = useState('all');
   const [orgFilter, setOrgFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
@@ -514,6 +526,7 @@ export default function DailyTaskManager() {
         estimatedHours: sizeData.hours,
         scheduledTime: newTaskTime || null,
         recurrence: newTaskRecurrence,
+        customDays: newTaskRecurrence === 'custom' ? [...newTaskCustomDays] : null,
         lastRecurrence: newTaskRecurrence !== 'none' ? new Date().toISOString() : null,
         completed: false,
         qualityRating: 'unrated',
@@ -531,6 +544,7 @@ export default function DailyTaskManager() {
       setNewTaskPriority('medium');
       setNewTaskTags([]);
       setNewTaskRecurrence('none');
+      setNewTaskCustomDays([1, 2, 3, 4, 5]);
     }
   };
 
@@ -547,6 +561,7 @@ export default function DailyTaskManager() {
       estimatedHours: template.duration,
       scheduledTime: template.time,
       recurrence: 'none',
+      customDays: null,
       lastRecurrence: null,
       completed: false,
       qualityRating: 'unrated',
@@ -581,6 +596,10 @@ export default function DailyTaskManager() {
         case 'weekdays':
           const dayOfWeek = now.getDay();
           shouldRecur = daysSince >= 1 && dayOfWeek >= 1 && dayOfWeek <= 5; // Mon-Fri
+          break;
+        case 'custom':
+          const currentDay = now.getDay();
+          shouldRecur = daysSince >= 1 && task.customDays && task.customDays.includes(currentDay);
           break;
         case 'weekly':
           shouldRecur = daysSince >= 7;
@@ -2594,6 +2613,42 @@ export default function DailyTaskManager() {
                     </option>
                   ))}
                 </select>
+                
+                {/* Custom Days Selector - Shows when Custom is selected */}
+                {newTaskRecurrence === 'custom' && (
+                  <div className="mt-3">
+                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Select Days
+                    </label>
+                    <div className="flex gap-2 flex-wrap">
+                      {DAYS_OF_WEEK.map(day => (
+                        <button
+                          key={day.value}
+                          type="button"
+                          onClick={() => {
+                            if (newTaskCustomDays.includes(day.value)) {
+                              setNewTaskCustomDays(newTaskCustomDays.filter(d => d !== day.value));
+                            } else {
+                              setNewTaskCustomDays([...newTaskCustomDays, day.value].sort());
+                            }
+                          }}
+                          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                            newTaskCustomDays.includes(day.value)
+                              ? 'bg-blue-600 text-white'
+                              : darkMode
+                                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {day.label}
+                        </button>
+                      ))}
+                    </div>
+                    {newTaskCustomDays.length === 0 && (
+                      <p className="text-sm text-red-500 mt-2">⚠️ Please select at least one day</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </form>
@@ -2944,7 +2999,10 @@ export default function DailyTaskManager() {
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
                               darkMode ? 'bg-blue-900 text-blue-200 border border-blue-700' : 'bg-blue-50 text-blue-700 border border-blue-200'
                             }`}>
-                              🔄 {RECURRENCE_PATTERNS.find(r => r.value === task.recurrence)?.label.split(' (')[0]}
+                              🔄 {task.recurrence === 'custom' && task.customDays
+                                ? `Custom (${task.customDays.map(d => DAYS_OF_WEEK.find(day => day.value === d)?.label).join(', ')})`
+                                : RECURRENCE_PATTERNS.find(r => r.value === task.recurrence)?.label.split(' (')[0]
+                              }
                             </span>
                           )}
                         </div>
