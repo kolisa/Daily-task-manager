@@ -1225,24 +1225,8 @@ export default function DailyTaskManager() {
           isTimerRunning: true,
           timerStartedAt: Date.now()
         };
-      } else {
-        // Pause any other running timers
-        if (task.isTimerRunning) {
-          const sessionDuration = Math.floor((Date.now() - task.timerStartedAt) / 1000);
-          return {
-            ...task,
-            isTimerRunning: false,
-            timeSpent: task.timeSpent + sessionDuration,
-            timerStartedAt: null,
-            sessions: [...task.sessions, {
-              start: task.timerStartedAt,
-              end: Date.now(),
-              duration: sessionDuration
-            }]
-          };
-        }
-        return task;
       }
+      return task;
     }));
   };
 
