@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCircle2, Circle, Trash2, Plus, TrendingUp, Play, Pause, Square, Clock, Bell, AlertCircle, Code, Bug, Wrench, Briefcase, Coffee, BookOpen, Target, Award, TrendingDown, Zap, Users, Edit2, Save, X } from 'lucide-react';
+import { CheckCircle2, Circle, Trash2, Plus, TrendingUp, Play, Pause, Square, Clock, Bell, AlertCircle, Code, Bug, Wrench, Briefcase, Coffee, BookOpen, Target, Award, TrendingDown, Zap, Users, Edit2, Save, X, FileText } from 'lucide-react';
 
 const TASK_TYPES = [
   { value: 'feature', label: 'Feature', icon: Code, color: 'blue' },
   { value: 'bug', label: 'Bug Fix', icon: Bug, color: 'red' },
   { value: 'support', label: 'Support', icon: Wrench, color: 'green' },
   { value: 'learning', label: 'Learning', icon: BookOpen, color: 'purple' },
-  { value: 'meeting', label: 'Meeting', icon: Users, color: 'orange' }
+  { value: 'meeting', label: 'Meeting', icon: Users, color: 'orange' },
+  { value: 'analysis', label: 'Analysis', icon: Target, color: 'indigo' },
+  { value: 'documentation', label: 'Documentation', icon: FileText, color: 'teal' }
 ];
 
 const TASK_SIZES = [
@@ -2803,6 +2805,14 @@ export default function DailyTaskManager() {
                     className={`p-4 transition-colors group ${
                       darkMode ? 'hover:bg-gray-750' : 'hover:bg-gray-50'
                     } ${
+                      task.completed 
+                        ? ''
+                        : task.isTimerRunning
+                          ? 'border-l-4 border-green-500'
+                          : task.timeSpent > 0
+                            ? 'border-l-4 border-orange-500'
+                            : 'border-l-4 border-gray-300'
+                    } ${
                       isStale && !task.completed ? (darkMode ? 'bg-orange-900/20 border-l-4 border-orange-600' : 'bg-orange-50 border-l-4 border-orange-400') : ''
                     }`}
                   >
@@ -2842,6 +2852,37 @@ export default function DailyTaskManager() {
                           >
                             {task.text}
                           </span>
+                          {/* Status Badge: In Progress or Not Started */}
+                          {!task.completed && (
+                            <>
+                              {(task.isTimerRunning || task.timeSpent > 0) ? (
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${
+                                  task.isTimerRunning
+                                    ? 'bg-green-100 text-green-800 border border-green-300'
+                                    : darkMode
+                                      ? 'bg-orange-900 text-orange-200 border border-orange-700'
+                                      : 'bg-orange-100 text-orange-700 border border-orange-300'
+                                }`}>
+                                  {task.isTimerRunning ? (
+                                    <>
+                                      <span className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
+                                      ACTIVE
+                                    </>
+                                  ) : (
+                                    <>IN PROGRESS</>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                                  darkMode
+                                    ? 'bg-gray-700 text-gray-300 border border-gray-600'
+                                    : 'bg-gray-100 text-gray-600 border border-gray-300'
+                                }`}>
+                                  NOT STARTED
+                                </span>
+                              )}
+                            </>
+                          )}
                         </div>
 
                         {/* Badges Row */}
@@ -3140,6 +3181,84 @@ export default function DailyTaskManager() {
             >
               Clear {stats.completed} completed task{stats.completed !== 1 ? 's' : ''}
             </button>
+          </div>
+        )}
+
+        {/* Completed Tasks Section - Above Organization Overview */}
+        {stats.completed > 0 && (
+          <div className={`rounded-lg shadow-md p-6 mt-8 mb-6 ${darkMode ? 'bg-gray-800 border-2 border-green-700' : 'bg-white border-2 border-green-200'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={`font-semibold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                Completed Tasks
+              </h3>
+              <div className={`px-3 py-1 rounded-full text-sm font-bold ${
+                darkMode ? 'bg-green-600 text-white' : 'bg-green-500 text-white'
+              }`}>
+                {stats.completed} Completed
+              </div>
+            </div>
+            
+            <div className={`space-y-2 max-h-96 overflow-y-auto ${darkMode ? 'divide-y divide-gray-700' : 'divide-y divide-gray-200'}`}>
+              {tasks
+                .filter(t => t.completed)
+                .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))
+                .map(task => {
+                  const typeInfo = getTaskTypeInfo(task.type);
+                  const TypeIcon = typeInfo.icon;
+                  const orgInfo = getOrgInfo(task.organization);
+                  
+                  return (
+                    <div key={task.id} className="py-3">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-medium ${darkMode ? 'text-gray-400 line-through' : 'text-gray-500 line-through'}`}>
+                            {task.text}
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 text-sm">
+                            <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              <TypeIcon className="w-3 h-3" />
+                              {typeInfo.label}
+                            </span>
+                            <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              <Briefcase className="w-3 h-3" />
+                              {orgInfo.label}
+                            </span>
+                            {task.timeSpent > 0 && (
+                              <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                                <Clock className="w-3 h-3" />
+                                {(task.timeSpent / 3600).toFixed(1)}h
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => deleteTask(task.id)}
+                          className={`flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${
+                            darkMode ? 'text-gray-500 hover:text-red-400' : 'text-gray-400 hover:text-red-600'
+                          }`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+            
+            <div className="mt-4 pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}">
+              <button
+                onClick={clearCompleted}
+                className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${
+                  darkMode 
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : 'bg-red-500 hover:bg-red-600 text-white'
+                }`}
+              >
+                🗑️ Clear All {stats.completed} Completed Task{stats.completed !== 1 ? 's' : ''}
+              </button>
+            </div>
           </div>
         )}
 
