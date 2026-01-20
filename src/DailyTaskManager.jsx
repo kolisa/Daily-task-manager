@@ -2168,62 +2168,90 @@ export default function DailyTaskManager() {
           </div>
         </div>
 
-        {/* Organization Overview */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <Briefcase className="w-5 h-5" />
-            Organization Overview
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Work Organizations */}
-            <div>
-              <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                Work Organizations
+        {/* Currently Working On - Active Tasks */}
+        {tasks.some(t => t.isTimerRunning) && (
+          <div className={`rounded-lg shadow-lg mb-6 border-2 ${
+            darkMode 
+              ? 'bg-gradient-to-r from-blue-900 to-purple-900 border-blue-500' 
+              : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-400'
+          }`}>
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  ⏱️ Currently Working On
+                </h3>
               </div>
+              
               <div className="space-y-3">
-                {orgStats.filter(o => o.type === 'work').map(org => (
-                  <div key={org.org} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                    <div>
-                      <div className="font-medium text-gray-900">{org.label}</div>
-                      <div className="text-sm text-gray-600">
-                        {org.active} active • {org.completed} completed
-                        {org.stale > 0 && <span className="text-orange-600 font-semibold"> • {org.stale} stale</span>}
+                {tasks.filter(t => t.isTimerRunning).map(task => {
+                  const typeInfo = getTaskTypeInfo(task.type);
+                  const TypeIcon = typeInfo.icon;
+                  const orgInfo = getOrgInfo(task.organization);
+                  const elapsedTime = getElapsedTime(task);
+                  const hours = Math.floor(elapsedTime / 3600);
+                  const mins = Math.floor((elapsedTime % 3600) / 60);
+                  const secs = elapsedTime % 60;
+                  
+                  return (
+                    <div 
+                      key={task.id}
+                      className={`p-4 rounded-lg ${
+                        darkMode ? 'bg-gray-800/80' : 'bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <TypeIcon className="w-5 h-5 text-blue-600" />
+                            <span className={`font-semibold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {task.text}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              <Briefcase className="w-4 h-4" />
+                              {orgInfo.label}
+                            </span>
+                            <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {typeInfo.icon && <TypeIcon className="w-4 h-4" />}
+                              {typeInfo.label}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="text-3xl font-bold font-mono text-green-600">
+                            {hours > 0 && `${hours}:`}{String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => pauseTimer(task.id)}
+                              className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm font-medium transition-colors"
+                            >
+                              ⏸ Pause
+                            </button>
+                            <button
+                              onClick={() => stopTimer(task.id)}
+                              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+                            >
+                              ✓ Complete
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm text-gray-500">Time</div>
-                      <div className="font-semibold text-blue-700">{formatTime(org.timeSpent)}</div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            </div>
-
-            {/* Personal Projects */}
-            <div>
-              <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                Personal Projects (Spare Time)
-              </div>
-              <div className="space-y-3">
-                {orgStats.filter(o => o.type === 'personal').map(org => (
-                  <div key={org.org} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
-                    <div>
-                      <div className="font-medium text-gray-900">{org.label}</div>
-                      <div className="text-sm text-gray-600">
-                        {org.active} active • {org.completed} completed
-                        {org.stale > 0 && <span className="text-orange-600 font-semibold"> • {org.stale} stale</span>}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm text-gray-500">Time</div>
-                      <div className="font-semibold text-purple-700">{formatTime(org.timeSpent)}</div>
-                    </div>
-                  </div>
-                ))}
+              
+              <div className={`mt-3 text-sm ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                💡 Timer continues running even when you switch tabs or apps!
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Progress Bar */}
         <div className="bg-white rounded-lg p-4 shadow-md mb-6">
@@ -2503,91 +2531,6 @@ export default function DailyTaskManager() {
             </button>
           </div>
         </div>
-
-        {/* Currently Working On - Active Tasks */}
-        {tasks.some(t => t.isTimerRunning) && (
-          <div className={`rounded-lg shadow-lg mb-6 border-2 ${
-            darkMode 
-              ? 'bg-gradient-to-r from-blue-900 to-purple-900 border-blue-500' 
-              : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-400'
-          }`}>
-            <div className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  ⏱️ Currently Working On
-                </h3>
-              </div>
-              
-              <div className="space-y-3">
-                {tasks.filter(t => t.isTimerRunning).map(task => {
-                  const typeInfo = getTaskTypeInfo(task.type);
-                  const TypeIcon = typeInfo.icon;
-                  const orgInfo = getOrgInfo(task.organization);
-                  const elapsedTime = getElapsedTime(task);
-                  const hours = Math.floor(elapsedTime / 3600);
-                  const mins = Math.floor((elapsedTime % 3600) / 60);
-                  const secs = elapsedTime % 60;
-                  
-                  return (
-                    <div 
-                      key={task.id}
-                      className={`p-4 rounded-lg ${
-                        darkMode ? 'bg-gray-800/80' : 'bg-white'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <TypeIcon className="w-5 h-5 text-blue-600" />
-                            <span className={`font-semibold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                              {task.text}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center gap-4 text-sm">
-                            <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              <Briefcase className="w-4 h-4" />
-                              {orgInfo.label}
-                            </span>
-                            <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {typeInfo.icon && <TypeIcon className="w-4 h-4" />}
-                              {typeInfo.label}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="text-3xl font-bold font-mono text-green-600">
-                            {hours > 0 && `${hours}:`}{String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => pauseTimer(task.id)}
-                              className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm font-medium transition-colors"
-                            >
-                              ⏸ Pause
-                            </button>
-                            <button
-                              onClick={() => stopTimer(task.id)}
-                              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
-                            >
-                              ✓ Complete
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              
-              <div className={`mt-3 text-sm ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
-                💡 Timer continues running even when you switch tabs or apps!
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Organization Filter */}
         <div className={`rounded-lg shadow-md mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
@@ -3077,12 +3020,83 @@ export default function DailyTaskManager() {
           <div className="text-center">
             <button
               onClick={clearCompleted}
-              className="text-gray-600 hover:text-red-600 font-medium transition-colors"
+              className={`font-medium transition-colors ${
+                darkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-600 hover:text-red-600'
+              }`}
             >
               Clear {stats.completed} completed task{stats.completed !== 1 ? 's' : ''}
             </button>
           </div>
         )}
+
+        {/* Organization Overview - At Bottom */}
+        <div className={`rounded-lg shadow-md p-6 mt-8 mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <h3 className={`font-semibold mb-4 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+            <Briefcase className="w-5 h-5" />
+            Organization Overview
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Work Organizations */}
+            <div>
+              <div className={`text-sm font-semibold uppercase tracking-wider mb-3 ${
+                darkMode ? 'text-gray-500' : 'text-gray-500'
+              }`}>
+                Work Organizations
+              </div>
+              <div className="space-y-3">
+                {orgStats.filter(o => o.type === 'work').map(org => (
+                  <div key={org.org} className={`flex items-center justify-between p-3 rounded-lg ${
+                    darkMode ? 'bg-blue-900/30' : 'bg-blue-50'
+                  }`}>
+                    <div>
+                      <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {org.label}
+                      </div>
+                      <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {org.active} active • {org.completed} completed
+                        {org.stale > 0 && <span className="text-orange-600 font-semibold"> • {org.stale} stale</span>}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Time</div>
+                      <div className="font-semibold text-blue-600">{formatTime(org.timeSpent)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Personal Projects */}
+            <div>
+              <div className={`text-sm font-semibold uppercase tracking-wider mb-3 ${
+                darkMode ? 'text-gray-500' : 'text-gray-500'
+              }`}>
+                Personal Projects (Spare Time)
+              </div>
+              <div className="space-y-3">
+                {orgStats.filter(o => o.type === 'personal').map(org => (
+                  <div key={org.org} className={`flex items-center justify-between p-3 rounded-lg ${
+                    darkMode ? 'bg-purple-900/30' : 'bg-purple-50'
+                  }`}>
+                    <div>
+                      <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {org.label}
+                      </div>
+                      <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {org.active} active • {org.completed} completed
+                        {org.stale > 0 && <span className="text-orange-600 font-semibold"> • {org.stale} stale</span>}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Time</div>
+                      <div className="font-semibold text-purple-600">{formatTime(org.timeSpent)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
           </div>
         )}
 
