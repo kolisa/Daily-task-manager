@@ -151,6 +151,7 @@ export default function DailyTaskManager() {
   const [activePomodoroTask, setActivePomodoroTask] = useState(null);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [editingTaskNotes, setEditingTaskNotes] = useState(null);
+  const [editingTask, setEditingTask] = useState(null); // Task being edited
   const timerRef = useRef(null);
   const notificationCheckRef = useRef(null);
   const pomodoroTimerRef = useRef(null);
@@ -1236,6 +1237,61 @@ export default function DailyTaskManager() {
 
   const deleteTask = (id) => {
     setTasks(tasks.filter(task => task.id !== id));
+  };
+
+  const startEditTask = (task) => {
+    // Populate form with task data
+    setNewTask(task.text);
+    setNewTaskType(task.type);
+    setNewTaskSize(task.size);
+    setNewTaskOrg(task.organization);
+    setNewTaskTime(task.scheduledTime || '');
+    setNewTaskPriority(task.priority);
+    setNewTaskTags(task.tags || []);
+    setNewTaskRecurrence(task.recurrence || 'none');
+    setNewTaskCustomDays(task.customDays || [1, 2, 3, 4, 5]);
+    setEditingTask(task);
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const updateTask = (e) => {
+    e.preventDefault();
+    if (newTask.trim() && editingTask) {
+      const sizeData = TASK_SIZES.find(s => s.value === newTaskSize);
+      setTasks(tasks.map(task => {
+        if (task.id === editingTask.id) {
+          return {
+            ...task,
+            text: newTask.trim(),
+            type: newTaskType,
+            size: newTaskSize,
+            organization: newTaskOrg,
+            priority: newTaskPriority,
+            tags: [...newTaskTags],
+            estimatedHours: sizeData.hours,
+            scheduledTime: newTaskTime || null,
+            recurrence: newTaskRecurrence,
+            customDays: newTaskRecurrence === 'custom' ? [...newTaskCustomDays] : null,
+          };
+        }
+        return task;
+      }));
+      
+      // Clear form and exit edit mode
+      cancelEdit();
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingTask(null);
+    setNewTask('');
+    setNewTaskSize('m');
+    setNewTaskTime('');
+    setNewTaskPriority('medium');
+    setNewTaskTags([]);
+    setNewTaskRecurrence('none');
+    setNewTaskCustomDays([1, 2, 3, 4, 5]);
   };
 
   const startTimer = (id) => {
@@ -2403,7 +2459,26 @@ export default function DailyTaskManager() {
             </button>
           </div>
 
-          <form onSubmit={addTask} className="space-y-4">
+          <form onSubmit={editingTask ? updateTask : addTask} className="space-y-4">
+            {editingTask && (
+              <div className={`px-4 py-3 rounded-lg ${darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`font-semibold ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                    ✏️ Editing Task
+                  </span>
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                      darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            
             <div className="flex gap-2">
               <input
                 type="text"
@@ -2416,10 +2491,23 @@ export default function DailyTaskManager() {
               />
               <button
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2 transition-colors"
+                className={`${
+                  editingTask 
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                } text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2 transition-colors`}
               >
-                <Plus className="w-5 h-5" />
-                Add Task
+                {editingTask ? (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Save Changes
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-5 h-5" />
+                    Add Task
+                  </>
+                )}
               </button>
             </div>
             
@@ -2835,42 +2923,59 @@ export default function DailyTaskManager() {
           </div>
         </div>
 
-        {/* Task List */}
-        <div className={`rounded-lg shadow-md overflow-hidden mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+        {/* Task List - Grouped by Status */}
+        <div className="space-y-6 mb-6">
           {filteredTasks.length === 0 ? (
-            <div className={`p-12 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            <div className={`rounded-lg shadow-md p-12 text-center ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-500'}`}>
               {filter === 'all' && 'No tasks yet. Add your first task above!'}
               {filter === 'active' && 'No active tasks. Great job! 🎉'}
               {filter === 'completed' && 'No completed tasks yet. Keep going!'}
             </div>
           ) : (
-            <div className={darkMode ? 'divide-y divide-gray-700' : 'divide-y divide-gray-200'}>
-              {filteredTasks.map((task) => {
-                const elapsedTime = getElapsedTime(task);
-                const taskAge = getTaskAge(task);
-                const isStale = isTaskStale(task);
-                const timeComparison = getTimeComparison(task);
-                const typeInfo = getTaskTypeInfo(task.type);
-                const sizeInfo = getTaskSizeInfo(task.size);
-                const TypeIcon = typeInfo.icon;
-
+            <>
+              {/* ACTIVE Tasks Section */}
+              {(() => {
+                const activeTasks = filteredTasks.filter(t => !t.completed && t.isTimerRunning);
+                if (activeTasks.length === 0) return null;
+                
                 return (
-                  <div
-                    key={task.id}
-                    className={`p-4 transition-colors group ${
-                      darkMode ? 'hover:bg-gray-750' : 'hover:bg-gray-50'
-                    } ${
-                      task.completed 
-                        ? ''
-                        : task.isTimerRunning
-                          ? 'border-l-4 border-green-500'
-                          : task.timeSpent > 0
-                            ? 'border-l-4 border-orange-500'
-                            : 'border-l-4 border-gray-300'
-                    } ${
-                      isStale && !task.completed ? (darkMode ? 'bg-orange-900/20 border-l-4 border-orange-600' : 'bg-orange-50 border-l-4 border-orange-400') : ''
-                    }`}
-                  >
+                  <div className={`rounded-lg shadow-lg border-2 ${
+                    darkMode ? 'bg-gray-800 border-green-600' : 'bg-white border-green-400'
+                  }`}>
+                    <div className={`px-6 py-4 border-b ${
+                      darkMode ? 'bg-green-900/30 border-green-700' : 'bg-green-50 border-green-200'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <h3 className={`font-bold text-lg flex items-center gap-2 ${
+                          darkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                          ACTIVE - Timer Running
+                        </h3>
+                        <div className="px-3 py-1 bg-green-600 text-white rounded-full text-sm font-bold">
+                          {activeTasks.length} Active
+                        </div>
+                      </div>
+                    </div>
+                    <div className={darkMode ? 'divide-y divide-gray-700' : 'divide-y divide-gray-200'}>
+                      {activeTasks.map((task) => {
+                        const elapsedTime = getElapsedTime(task);
+                        const taskAge = getTaskAge(task);
+                        const isStale = isTaskStale(task);
+                        const timeComparison = getTimeComparison(task);
+                        const typeInfo = getTaskTypeInfo(task.type);
+                        const sizeInfo = getTaskSizeInfo(task.size);
+                        const TypeIcon = typeInfo.icon;
+
+                        return (
+                          <div
+                            key={task.id}
+                            className={`p-4 transition-colors group border-l-4 border-green-500 ${
+                              darkMode ? 'hover:bg-gray-750' : 'hover:bg-gray-50'
+                            } ${
+                              isStale ? (darkMode ? 'bg-orange-900/20' : 'bg-orange-50') : ''
+                            }`}
+                          >
                     {/* Stale Task Warning */}
                     {isStale && (
                       <div className={`mb-3 flex items-center gap-2 text-sm font-medium ${
@@ -3150,10 +3255,21 @@ export default function DailyTaskManager() {
                       )}
                       
                       <button
+                        onClick={() => startEditTask(task)}
+                        className={`flex-shrink-0 transition-colors opacity-0 group-hover:opacity-100 ${
+                          darkMode ? 'text-gray-500 hover:text-blue-400' : 'text-gray-400 hover:text-blue-600'
+                        }`}
+                        title="Edit task"
+                      >
+                        <Edit2 className="w-5 h-5" />
+                      </button>
+                      
+                      <button
                         onClick={() => deleteTask(task.id)}
                         className={`flex-shrink-0 transition-colors opacity-0 group-hover:opacity-100 ${
                           darkMode ? 'text-gray-500 hover:text-red-400' : 'text-gray-400 hover:text-red-600'
                         }`}
+                        title="Delete task"
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>
@@ -3225,10 +3341,55 @@ export default function DailyTaskManager() {
                 );
               })}
             </div>
-          )}
-        </div>
+          </div>
+        );
+      })()}
+      
+      {/* IN PROGRESS Tasks Section */}
+      {(() => {
+        const inProgressTasks = filteredTasks.filter(t => !t.completed && !t.isTimerRunning && t.timeSpent > 0);
+        if (inProgressTasks.length === 0) return null;
+        
+        return (
+          <div className={`rounded-lg shadow-lg border-2 ${
+            darkMode ? 'bg-gray-800 border-orange-600' : 'bg-white border-orange-400'
+          }`}>
+            <div className={`px-6 py-4 border-b ${
+              darkMode ? 'bg-orange-900/30 border-orange-700' : 'bg-orange-50 border-orange-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <h3 className={`font-bold text-lg flex items-center gap-2 ${
+                  darkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                  IN PROGRESS - Paused Work
+                </h3>
+                <div className={`px-3 py-1 rounded-full text-sm font-bold ${
+                  darkMode ? 'bg-orange-600 text-white' : 'bg-orange-500 text-white'
+                }`}>
+                  {inProgressTasks.length} In Progress
+                </div>
+              </div>
+            </div>
+            <div className={darkMode ? 'divide-y divide-gray-700' : 'divide-y divide-gray-200'}>
+              {inProgressTasks.map((task) => {
+                const elapsedTime = getElapsedTime(task);
+                const taskAge = getTaskAge(task);
+                const isStale = isTaskStale(task);
+                const timeComparison = getTimeComparison(task);
+                const typeInfo = getTaskTypeInfo(task.type);
+                const sizeInfo = getTaskSizeInfo(task.size);
+                const TypeIcon = typeInfo.icon;
 
-        {/* Clear Completed Button */}
+                return (
+                  <div
+                    key={task.id}
+                    className={`p-4 transition-colors group border-l-4 border-orange-500 ${
+                      darkMode ? 'hover:bg-gray-750' : 'hover:bg-gray-50'
+                    } ${
+                      isStale ? (darkMode ? 'bg-orange-900/20' : 'bg-orange-50') : ''
+                    }`}
+                  >
         {stats.completed > 0 && (
           <div className="text-center">
             <button
@@ -4119,4 +4280,20 @@ export default function DailyTaskManager() {
       </div>
     </div>
   );
-}
+}        {/* Task List - Grouped by Status */}
+        <div className="space-y-6 mb-6">
+          {filteredTasks.length === 0 ? (
+            <div className={`rounded-lg shadow-md p-12 text-center ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-500'}`}>
+              {filter === 'all' && 'No tasks yet. Add your first task above!'}
+              {filter === 'active' && 'No active tasks. Great job! 🎉'}
+              {filter === 'completed' && 'No completed tasks yet. Keep going!'}
+            </div>
+          ) : (
+            <>
+              {/* Status groups will be inserted here */}
+              <div>Placeholder for grouped tasks</div>
+            </>
+          )}
+        </div>
+
+
