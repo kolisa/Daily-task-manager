@@ -1644,7 +1644,7 @@ export default function DailyTaskManager() {
         <div className="text-center mb-6 pt-8">
           <div className="flex items-center justify-center gap-4 mb-2">
             <h1 className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-              Daily Task Manager
+              Kholisa Mjobo - Daily Task Manager
             </h1>
             <button
               onClick={() => setDarkMode(!darkMode)}
@@ -1659,7 +1659,7 @@ export default function DailyTaskManager() {
             </button>
           </div>
           <p className={darkMode ? 'text-gray-300' : 'text-gray-600'}>
-            Stay focused. Stay productive.
+            Senior Software Engineer • Stay focused. Stay productive.
           </p>
           
           {/* View Toggle */}
