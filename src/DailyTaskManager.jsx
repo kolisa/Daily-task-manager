@@ -2210,8 +2210,8 @@ export default function DailyTaskManager() {
           </div>
         </div>
 
-        {/* Currently Working On - Active Tasks */}
-        {tasks.some(t => t.isTimerRunning) && (
+        {/* Currently Working On - In Progress Tasks */}
+        {tasks.some(t => !t.completed && (t.isTimerRunning || t.timeSpent > 0)) && (
           <div className={`rounded-lg shadow-lg mb-6 border-2 ${
             darkMode 
               ? 'bg-gradient-to-r from-blue-900 to-purple-900 border-blue-500' 
@@ -2220,95 +2220,141 @@ export default function DailyTaskManager() {
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
                   <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    ⏱️ Currently Working On
+                    📋 Currently Working On
                   </h3>
                 </div>
                 <div className={`px-3 py-1 rounded-full text-sm font-bold ${
-                  darkMode ? 'bg-green-600 text-white' : 'bg-green-500 text-white'
+                  darkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
                 }`}>
-                  {tasks.filter(t => t.isTimerRunning).length} Active
+                  {tasks.filter(t => !t.completed && (t.isTimerRunning || t.timeSpent > 0)).length} In Progress
                 </div>
               </div>
               
               <div className="space-y-3">
-                {tasks.filter(t => t.isTimerRunning).map((task, index) => {
-                  const typeInfo = getTaskTypeInfo(task.type);
-                  const TypeIcon = typeInfo.icon;
-                  const orgInfo = getOrgInfo(task.organization);
-                  const elapsedTime = getElapsedTime(task);
-                  const hours = Math.floor(elapsedTime / 3600);
-                  const mins = Math.floor((elapsedTime % 3600) / 60);
-                  const secs = elapsedTime % 60;
-                  
-                  return (
-                    <div 
-                      key={task.id}
-                      className={`p-4 rounded-lg border-l-4 ${
-                        darkMode 
-                          ? 'bg-gray-800/80 border-green-500' 
-                          : 'bg-white border-green-400'
-                      } ${index > 0 ? 'mt-3' : ''}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <TypeIcon className="w-5 h-5 text-blue-600" />
-                            <span className={`font-semibold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                              {task.text}
-                            </span>
-                            {tasks.filter(t => t.isTimerRunning).length > 1 && (
-                              <span className={`text-xs px-2 py-0.5 rounded ${
-                                darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'
-                              }`}>
-                                #{index + 1}
+                {tasks
+                  .filter(t => !t.completed && (t.isTimerRunning || t.timeSpent > 0))
+                  .sort((a, b) => {
+                    // Sort: Active timers first, then by time spent (most recent work)
+                    if (a.isTimerRunning && !b.isTimerRunning) return -1;
+                    if (!a.isTimerRunning && b.isTimerRunning) return 1;
+                    return b.timeSpent - a.timeSpent;
+                  })
+                  .map((task, index) => {
+                    const typeInfo = getTaskTypeInfo(task.type);
+                    const TypeIcon = typeInfo.icon;
+                    const orgInfo = getOrgInfo(task.organization);
+                    const elapsedTime = task.isTimerRunning ? getElapsedTime(task) : 0;
+                    const hours = Math.floor(elapsedTime / 3600);
+                    const mins = Math.floor((elapsedTime % 3600) / 60);
+                    const secs = elapsedTime % 60;
+                    
+                    return (
+                      <div 
+                        key={task.id}
+                        className={`p-4 rounded-lg border-l-4 ${
+                          task.isTimerRunning
+                            ? darkMode 
+                              ? 'bg-gray-800/80 border-green-500' 
+                              : 'bg-white border-green-400'
+                            : darkMode
+                              ? 'bg-gray-800/80 border-orange-500'
+                              : 'bg-white border-orange-400'
+                        } ${index > 0 ? 'mt-3' : ''}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <TypeIcon className="w-5 h-5 text-blue-600" />
+                              <span className={`font-semibold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {task.text}
                               </span>
-                            )}
+                              {task.isTimerRunning && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs font-semibold">
+                                  <span className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
+                                  ACTIVE
+                                </span>
+                              )}
+                              {!task.isTimerRunning && (
+                                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                                  darkMode ? 'bg-orange-900 text-orange-200' : 'bg-orange-100 text-orange-700'
+                                }`}>
+                                  IN PROGRESS
+                                </span>
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center gap-4 text-sm">
+                              <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                <Briefcase className="w-4 h-4" />
+                                {orgInfo.label}
+                              </span>
+                              <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {typeInfo.icon && <TypeIcon className="w-4 h-4" />}
+                                {typeInfo.label}
+                              </span>
+                              <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                <Clock className="w-4 h-4" />
+                                Total: {(task.timeSpent / 3600).toFixed(1)}h
+                              </span>
+                            </div>
                           </div>
                           
-                          <div className="flex items-center gap-4 text-sm">
-                            <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              <Briefcase className="w-4 h-4" />
-                              {orgInfo.label}
-                            </span>
-                            <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {typeInfo.icon && <TypeIcon className="w-4 h-4" />}
-                              {typeInfo.label}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="text-3xl font-bold font-mono text-green-600">
-                            {hours > 0 && `${hours}:`}{String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => pauseTimer(task.id)}
-                              className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm font-medium transition-colors"
-                            >
-                              ⏸ Pause
-                            </button>
-                            <button
-                              onClick={() => stopTimer(task.id)}
-                              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
-                            >
-                              ✓ Complete
-                            </button>
+                          <div className="flex flex-col items-end gap-2">
+                            {task.isTimerRunning ? (
+                              <>
+                                <div className="text-3xl font-bold font-mono text-green-600">
+                                  {hours > 0 && `${hours}:`}{String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => pauseTimer(task.id)}
+                                    className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm font-medium transition-colors"
+                                  >
+                                    ⏸ Pause
+                                  </button>
+                                  <button
+                                    onClick={() => stopTimer(task.id)}
+                                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+                                  >
+                                    ✓ Complete
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  Paused
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => startTimer(task.id)}
+                                    className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors"
+                                  >
+                                    ▶ Resume
+                                  </button>
+                                  <button
+                                    onClick={() => stopTimer(task.id)}
+                                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+                                  >
+                                    ✓ Complete
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
               
               <div className={`mt-3 text-sm flex items-center justify-between ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
                 <span>💡 All timers continue running even when you switch tabs or apps!</span>
-                {tasks.filter(t => t.isTimerRunning).length > 1 && (
+                {tasks.filter(t => !t.completed && (t.isTimerRunning || t.timeSpent > 0)).length > 1 && (
                   <span className="font-semibold">
-                    {tasks.filter(t => t.isTimerRunning).length} concurrent tasks
+                    {tasks.filter(t => t.isTimerRunning).length} active • {tasks.filter(t => !t.completed && t.timeSpent > 0 && !t.isTimerRunning).length} paused
                   </span>
                 )}
               </div>
