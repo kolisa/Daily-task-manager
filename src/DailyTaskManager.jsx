@@ -3384,106 +3384,6 @@ export default function DailyTaskManager() {
           </div>
         </div>
 
-        {/* Organization Filter */}
-        <div className={`rounded-lg shadow-md mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <div className={`p-4 ${darkMode ? 'border-b border-gray-700' : 'border-b border-gray-200'}`}>
-            <h3 className={`font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-              Filter by Organization/Project
-            </h3>
-            
-            <div className="space-y-3">
-              {/* All Organizations */}
-              <button
-                onClick={() => setOrgFilter('all')}
-                className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
-                  orgFilter === 'all'
-                    ? 'bg-gray-100 text-gray-900 font-semibold'
-                    : 'hover:bg-gray-50 text-gray-600'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span>All Organizations</span>
-                  <span className="text-sm text-gray-500">{stats.total} tasks</span>
-                </div>
-              </button>
-
-              {/* Work Organizations */}
-              <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-4">
-                  Work Organizations
-                </div>
-                <div className="space-y-1">
-                  {orgStats.filter(o => o.type === 'work').map(org => {
-                    const OrgIcon = org.icon;
-                    return (
-                      <button
-                        key={org.org}
-                        onClick={() => setOrgFilter(org.org)}
-                        className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
-                          orgFilter === org.org
-                            ? 'bg-blue-50 text-blue-900 font-semibold border-l-4 border-blue-600'
-                            : 'hover:bg-gray-50 text-gray-700'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <OrgIcon className="w-4 h-4" />
-                            <span>{org.label}</span>
-                          </div>
-                          <div className="flex items-center gap-3 text-sm">
-                            <span className="text-gray-500">{org.active} active</span>
-                            <span className="text-green-600">{org.completed} done</span>
-                            {org.stale > 0 && (
-                              <span className="text-orange-600 font-semibold">{org.stale} stale</span>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Personal Projects */}
-              <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-4">
-                  Personal Projects (Spare Time)
-                </div>
-                <div className="space-y-1">
-                  {orgStats.filter(o => o.type === 'personal').map(org => {
-                    const OrgIcon = org.icon;
-                    return (
-                      <button
-                        key={org.org}
-                        onClick={() => setOrgFilter(org.org)}
-                        className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
-                          orgFilter === org.org
-                            ? 'bg-purple-50 text-purple-900 font-semibold border-l-4 border-purple-600'
-                            : 'hover:bg-gray-50 text-gray-700'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <OrgIcon className="w-4 h-4" />
-                            <span>{org.label}</span>
-                          </div>
-                          <div className="flex items-center gap-3 text-sm">
-                            <span className="text-gray-500">{org.active} active</span>
-                            <span className="text-green-600">{org.completed} done</span>
-                            {org.stale > 0 && (
-                              <span className="text-orange-600 font-semibold">{org.stale} stale</span>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Priority and Tag Filters */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {/* Priority Filter */}
@@ -4068,6 +3968,106 @@ export default function DailyTaskManager() {
               })}
             </div>
           )}
+        </div>
+
+        {/* Organization Filter */}
+        <div className={`rounded-lg shadow-md mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className={`p-4 ${darkMode ? 'border-b border-gray-700' : 'border-b border-gray-200'}`}>
+            <h3 className={`font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              Filter by Organization/Project
+            </h3>
+            
+            <div className="space-y-3">
+              {/* All Organizations */}
+              <button
+                onClick={() => setOrgFilter('all')}
+                className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+                  orgFilter === 'all'
+                    ? 'bg-gray-100 text-gray-900 font-semibold'
+                    : 'hover:bg-gray-50 text-gray-600'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span>All Organizations</span>
+                  <span className="text-sm text-gray-500">{stats.total} tasks</span>
+                </div>
+              </button>
+
+              {/* Work Organizations */}
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-4">
+                  Work Organizations
+                </div>
+                <div className="space-y-1">
+                  {orgStats.filter(o => o.type === 'work').map(org => {
+                    const OrgIcon = org.icon;
+                    return (
+                      <button
+                        key={org.org}
+                        onClick={() => setOrgFilter(org.org)}
+                        className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+                          orgFilter === org.org
+                            ? 'bg-blue-50 text-blue-900 font-semibold border-l-4 border-blue-600'
+                            : 'hover:bg-gray-50 text-gray-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <OrgIcon className="w-4 h-4" />
+                            <span>{org.label}</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className="text-gray-500">{org.active} active</span>
+                            <span className="text-green-600">{org.completed} done</span>
+                            {org.stale > 0 && (
+                              <span className="text-orange-600 font-semibold">{org.stale} stale</span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Personal Projects */}
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-4">
+                  Personal Projects (Spare Time)
+                </div>
+                <div className="space-y-1">
+                  {orgStats.filter(o => o.type === 'personal').map(org => {
+                    const OrgIcon = org.icon;
+                    return (
+                      <button
+                        key={org.org}
+                        onClick={() => setOrgFilter(org.org)}
+                        className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+                          orgFilter === org.org
+                            ? 'bg-purple-50 text-purple-900 font-semibold border-l-4 border-purple-600'
+                            : 'hover:bg-gray-50 text-gray-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <OrgIcon className="w-4 h-4" />
+                            <span>{org.label}</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className="text-gray-500">{org.active} active</span>
+                            <span className="text-green-600">{org.completed} done</span>
+                            {org.stale > 0 && (
+                              <span className="text-orange-600 font-semibold">{org.stale} stale</span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Clear Completed Button */}
