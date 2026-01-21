@@ -49,6 +49,17 @@ const PRIORITY_MULTIPLIERS = {
   low: 0.75
 };
 
+// Break types for logging time away
+const BREAK_TYPES = [
+  { value: 'lunch', label: '🍽️ Lunch', duration: 60, color: 'orange' },
+  { value: 'coffee', label: '☕ Coffee Break', duration: 15, color: 'amber' },
+  { value: 'bio', label: '🚻 Bio Break', duration: 5, color: 'blue' },
+  { value: 'walk', label: '🚶 Short Walk', duration: 15, color: 'green' },
+  { value: 'errand', label: '🏃 Quick Errand', duration: 30, color: 'purple' },
+  { value: 'personal', label: '📱 Personal Call', duration: 10, color: 'pink' },
+  { value: 'other', label: '⏸️ Other', duration: 15, color: 'gray' }
+];
+
 const DEFAULT_ORGANIZATIONS = [
   { value: 'webafrica', label: 'Web Africa', icon: Briefcase, color: 'blue', type: 'work' },
   { value: 'lexisnexis', label: 'LexisNexis', icon: Briefcase, color: 'indigo', type: 'work' },
@@ -174,6 +185,9 @@ export default function DailyTaskManager() {
   const [activePomodoroTask, setActivePomodoroTask] = useState(null);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [editingTaskNotes, setEditingTaskNotes] = useState(null);
+  const [showBreakMenu, setShowBreakMenu] = useState(false);
+  const [activeBreak, setActiveBreak] = useState(null); // { type, startedAt }
+  const [todayBreaks, setTodayBreaks] = useState([]); // Array of completed breaks
   const timerRef = useRef(null);
   const notificationCheckRef = useRef(null);
   const pomodoroTimerRef = useRef(null);
@@ -254,6 +268,22 @@ export default function DailyTaskManager() {
     const savedLastCleanup = localStorage.getItem('lastCleanupDate');
     if (savedLastCleanup) {
       setLastCleanupDate(savedLastCleanup);
+    }
+
+    // Load today's breaks
+    const savedBreaks = localStorage.getItem('todayBreaks');
+    if (savedBreaks) {
+      const breaks = JSON.parse(savedBreaks);
+      // Only load breaks from today
+      const today = new Date().toDateString();
+      const todayOnlyBreaks = breaks.filter(b => new Date(b.startedAt).toDateString() === today);
+      setTodayBreaks(todayOnlyBreaks);
+    }
+
+    // Load active break if any
+    const savedActiveBreak = localStorage.getItem('activeBreak');
+    if (savedActiveBreak) {
+      setActiveBreak(JSON.parse(savedActiveBreak));
     }
 
     // Check notification permission
@@ -1411,6 +1441,55 @@ export default function DailyTaskManager() {
     }
   };
 
+  // Break management functions
+  const startBreak = (breakType) => {
+    const breakInfo = BREAK_TYPES.find(b => b.value === breakType);
+    const newBreak = {
+      type: breakType,
+      label: breakInfo?.label || breakType,
+      startedAt: Date.now(),
+      expectedDuration: breakInfo?.duration || 15
+    };
+    setActiveBreak(newBreak);
+    localStorage.setItem('activeBreak', JSON.stringify(newBreak));
+    setShowBreakMenu(false);
+  };
+
+  const endBreak = () => {
+    if (activeBreak) {
+      const duration = Math.floor((Date.now() - activeBreak.startedAt) / 1000);
+      const completedBreak = {
+        ...activeBreak,
+        endedAt: Date.now(),
+        duration: duration
+      };
+      const updatedBreaks = [...todayBreaks, completedBreak];
+      setTodayBreaks(updatedBreaks);
+      localStorage.setItem('todayBreaks', JSON.stringify(updatedBreaks));
+      setActiveBreak(null);
+      localStorage.removeItem('activeBreak');
+    }
+  };
+
+  const cancelBreak = () => {
+    setActiveBreak(null);
+    localStorage.removeItem('activeBreak');
+  };
+
+  const getTotalBreakTime = () => {
+    let total = todayBreaks.reduce((sum, b) => sum + (b.duration || 0), 0);
+    // Add current break time if active
+    if (activeBreak) {
+      total += Math.floor((currentTime - activeBreak.startedAt) / 1000);
+    }
+    return total;
+  };
+
+  const getActiveBreakDuration = () => {
+    if (!activeBreak) return 0;
+    return Math.floor((currentTime - activeBreak.startedAt) / 1000);
+  };
+
   const getElapsedTime = (task) => {
     let totalSeconds = task.timeSpent;
     if (task.isTimerRunning && task.timerStartedAt) {
@@ -2100,6 +2179,70 @@ export default function DailyTaskManager() {
             >
               🍅 Pomodoro
             </button>
+            {/* Break/Away Button */}
+            <div className="relative">
+              {activeBreak ? (
+                <button
+                  onClick={endBreak}
+                  className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 bg-yellow-500 text-white animate-pulse"
+                  title="Click to end break"
+                >
+                  {BREAK_TYPES.find(b => b.value === activeBreak.type)?.label || '⏸️ On Break'} - {formatTime(getActiveBreakDuration())}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowBreakMenu(!showBreakMenu)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                    showBreakMenu
+                      ? 'bg-yellow-500 text-white'
+                      : darkMode
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                  title="Log a break"
+                >
+                  ☕ Break {getTotalBreakTime() > 0 && `(${formatTime(getTotalBreakTime())})`}
+                </button>
+              )}
+              
+              {/* Break Menu Dropdown */}
+              {showBreakMenu && !activeBreak && (
+                <div className={`absolute top-full left-0 mt-2 w-56 rounded-lg shadow-lg z-50 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+                  <div className={`px-3 py-2 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                    <div className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Start a Break</div>
+                    {getTotalBreakTime() > 0 && (
+                      <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Today's total: {formatTime(getTotalBreakTime())}
+                      </div>
+                    )}
+                  </div>
+                  <div className="py-1">
+                    {BREAK_TYPES.map(breakType => (
+                      <button
+                        key={breakType.value}
+                        onClick={() => startBreak(breakType.value)}
+                        className={`w-full text-left px-4 py-2 hover:bg-gray-100 ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'text-gray-700'}`}
+                      >
+                        <span className="mr-2">{breakType.label}</span>
+                        <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>~{breakType.duration}min</span>
+                      </button>
+                    ))}
+                  </div>
+                  {todayBreaks.length > 0 && (
+                    <div className={`px-3 py-2 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <div className={`text-xs font-semibold mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Today's Breaks</div>
+                      <div className="max-h-32 overflow-y-auto">
+                        {todayBreaks.map((b, i) => (
+                          <div key={i} className={`text-xs py-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {b.label} - {formatTime(b.duration)} at {new Date(b.startedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setShowKeyboardShortcuts(true)}
               className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
@@ -2683,7 +2826,7 @@ export default function DailyTaskManager() {
           <div className="space-y-6">
 
         {/* Stats Dashboard */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
           <div className={`rounded-lg p-4 shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
             <div className={`text-sm mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total Tasks</div>
             <div className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{stats.total}</div>
@@ -2711,6 +2854,15 @@ export default function DailyTaskManager() {
               Today's Time
             </div>
             <div className="text-2xl font-bold text-purple-600">{formatTime(stats.todayTimeSpent)}</div>
+          </div>
+          <div className={`rounded-lg p-4 shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`text-sm mb-1 flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              <Coffee className="w-3 h-3" />
+              Breaks Today
+            </div>
+            <div className={`text-2xl font-bold ${activeBreak ? 'text-yellow-500 animate-pulse' : 'text-orange-500'}`}>
+              {formatTime(getTotalBreakTime())}
+            </div>
           </div>
         </div>
 
