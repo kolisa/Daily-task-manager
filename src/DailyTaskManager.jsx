@@ -32,6 +32,23 @@ const QUALITY_RATINGS = [
   { value: 'unrated', label: 'Not yet rated', score: 0 }
 ];
 
+// Complexity points for task sizes (story points style)
+const SIZE_POINTS = {
+  xs: 1,
+  s: 2,
+  m: 3,
+  l: 5,
+  xl: 8,
+  xxl: 13
+};
+
+// Priority multipliers
+const PRIORITY_MULTIPLIERS = {
+  high: 1.5,
+  medium: 1.0,
+  low: 0.75
+};
+
 const DEFAULT_ORGANIZATIONS = [
   { value: 'webafrica', label: 'Web Africa', icon: Briefcase, color: 'blue', type: 'work' },
   { value: 'lexisnexis', label: 'LexisNexis', icon: Briefcase, color: 'indigo', type: 'work' },
@@ -163,10 +180,20 @@ export default function DailyTaskManager() {
   const searchInputRef = useRef(null);
 
   // Calculate storage usage
-  const calculateStorageUsage = () => {
-    const tasksSize = new Blob([JSON.stringify(tasks)]).size;
-    const archivedSize = new Blob([JSON.stringify(archivedTasks)]).size;
-    const totalSize = tasksSize + archivedSize;
+  const calculateStorageUsage = (currentTasks = tasks, currentArchived = archivedTasks) => {
+    // Calculate size of all localStorage items used by the app
+    let totalSize = 0;
+    const keys = ['dailyTasks', 'archivedTasks', 'customOrganizations', 'customTags', 'darkMode', 'morningReminderTime', 'weeklyCleanupEnabled', 'lastCleanupDate'];
+    
+    keys.forEach(key => {
+      const item = localStorage.getItem(key);
+      if (item) {
+        totalSize += new Blob([item]).size;
+      }
+    });
+
+    const tasksSize = new Blob([JSON.stringify(currentTasks)]).size;
+    const archivedSize = new Blob([JSON.stringify(currentArchived)]).size;
     const limit = 5000000; // 5MB conservative estimate
     const percentage = (totalSize / limit) * 100;
 
@@ -176,8 +203,8 @@ export default function DailyTaskManager() {
       percentage: percentage,
       tasksSize: tasksSize,
       archivedSize: archivedSize,
-      taskCount: tasks.length,
-      archivedCount: archivedTasks.length
+      taskCount: currentTasks.length,
+      archivedCount: currentArchived.length
     };
   };
 
@@ -242,6 +269,11 @@ export default function DailyTaskManager() {
     
     // Check for recurring tasks
     checkRecurringTasks();
+
+    // Calculate initial storage usage
+    setTimeout(() => {
+      setStorageInfo(calculateStorageUsage());
+    }, 100);
   }, []);
 
   // Apply dark mode to document
@@ -338,18 +370,22 @@ export default function DailyTaskManager() {
   // Save organizations to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('customOrganizations', JSON.stringify(organizations));
+    // Recalculate storage after save
+    setTimeout(() => setStorageInfo(calculateStorageUsage()), 50);
   }, [organizations]);
 
   // Save tasks to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('dailyTasks', JSON.stringify(tasks));
-    setStorageInfo(calculateStorageUsage());
+    // Recalculate storage after save
+    setTimeout(() => setStorageInfo(calculateStorageUsage(tasks, archivedTasks)), 50);
   }, [tasks]);
 
   // Save archived tasks to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('archivedTasks', JSON.stringify(archivedTasks));
-    setStorageInfo(calculateStorageUsage());
+    // Recalculate storage after save
+    setTimeout(() => setStorageInfo(calculateStorageUsage(tasks, archivedTasks)), 50);
   }, [archivedTasks]);
 
   // Save reminder time
@@ -1528,6 +1564,12 @@ export default function DailyTaskManager() {
     const learningTasks = periodTasks.filter(t => t.type === 'learning');
     const learningTime = learningTasks.reduce((sum, t) => sum + getElapsedTime(t), 0);
 
+    // Meeting time calculations
+    const meetingTasks = periodTasks.filter(t => isMeetingType(t.type));
+    const meetingTime = meetingTasks.reduce((sum, t) => sum + getElapsedTime(t), 0);
+    const meetingRatio = totalTime > 0 ? (meetingTime / totalTime) * 100 : 0;
+    const meetingEfficiency = meetingRatio <= 25 ? 100 : Math.max(0, 100 - ((meetingRatio - 25) * 4));
+
     // Quality metrics
     const ratedTasks = completedTasks.filter(t => t.qualityRating !== 'unrated');
     const avgQualityScore = ratedTasks.length > 0
@@ -1565,6 +1607,158 @@ export default function DailyTaskManager() {
       : 0;
     const focusScore = Math.min((avgSessionLength / 1800) * 100, 100); // 30min = 100%
 
+    // Deep work bonus (sessions > 2 hours)
+    const deepWorkSessions = allSessions.filter(s => s.duration >= 7200);
+    const deepWorkTime = deepWorkSessions.reduce((sum, s) => sum + s.duration, 0);
+    const deepWorkBonus = Math.min((deepWorkTime / 3600) * 10, 20); // Up to 20 bonus points for 2+ hours deep work
+
+    // Context switching penalty (many short sessions across different tasks)
+    const taskSessionCounts = completedTasks.map(t => (t.sessions || []).length);
+    const avgSessionsPerTask = taskSessionCounts.length > 0 
+      ? taskSessionCounts.reduce((a, b) => a + b, 0) / taskSessionCounts.length 
+      : 0;
+    const contextSwitchPenalty = avgSessionsPerTask > 3 ? Math.min((avgSessionsPerTask - 3) * 5, 15) : 0;
+
+    // === COMPLEXITY-WEIGHTED METRICS ===
+    const getTaskPoints = (task) => {
+      const sizePoints = SIZE_POINTS[task.size] || SIZE_POINTS.m;
+      const priorityMultiplier = PRIORITY_MULTIPLIERS[task.priority] || 1;
+      return sizePoints * priorityMultiplier;
+    };
+
+    const totalPoints = periodTasks.reduce((sum, t) => sum + getTaskPoints(t), 0);
+    const completedPoints = completedTasks.reduce((sum, t) => sum + getTaskPoints(t), 0);
+    const weightedCompletionRate = totalPoints > 0 ? (completedPoints / totalPoints) * 100 : 0;
+
+    // Velocity (points per day)
+    const daysInPeriod = period === 'today' ? 1 : 7;
+    const velocity = completedPoints / daysInPeriod;
+
+    // === STREAK TRACKING ===
+    const calculateStreaks = () => {
+      const allTasksWithDates = [...tasks, ...archivedTasks];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Daily completion streak
+      let completionStreak = 0;
+      let checkDate = new Date(today);
+      
+      for (let i = 0; i < 30; i++) { // Check last 30 days
+        const dayStart = new Date(checkDate);
+        const dayEnd = new Date(checkDate);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+        
+        const dayTasks = allTasksWithDates.filter(t => {
+          const created = new Date(t.createdAt);
+          return created >= dayStart && created < dayEnd;
+        });
+        
+        const dayCompleted = dayTasks.filter(t => t.completed);
+        
+        if (dayTasks.length > 0 && dayCompleted.length === dayTasks.length) {
+          completionStreak++;
+        } else if (dayTasks.length > 0) {
+          break;
+        }
+        
+        checkDate.setDate(checkDate.getDate() - 1);
+      }
+
+      // Learning streak (consecutive days with learning time)
+      let learningStreak = 0;
+      checkDate = new Date(today);
+      
+      for (let i = 0; i < 30; i++) {
+        const dayStart = new Date(checkDate);
+        const dayEnd = new Date(checkDate);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+        
+        const dayLearning = allTasksWithDates.filter(t => {
+          const created = new Date(t.createdAt);
+          return t.type === 'learning' && created >= dayStart && created < dayEnd && getElapsedTime(t) > 0;
+        });
+        
+        if (dayLearning.length > 0) {
+          learningStreak++;
+        } else {
+          break;
+        }
+        
+        checkDate.setDate(checkDate.getDate() - 1);
+      }
+
+      // Zero-bug streak (days without creating bug tasks)
+      let zeroBugStreak = 0;
+      checkDate = new Date(today);
+      
+      for (let i = 0; i < 30; i++) {
+        const dayStart = new Date(checkDate);
+        const dayEnd = new Date(checkDate);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+        
+        const dayBugs = allTasksWithDates.filter(t => {
+          const created = new Date(t.createdAt);
+          return t.type === 'bug' && created >= dayStart && created < dayEnd;
+        });
+        
+        if (dayBugs.length === 0) {
+          zeroBugStreak++;
+        } else {
+          break;
+        }
+        
+        checkDate.setDate(checkDate.getDate() - 1);
+      }
+
+      return { completionStreak, learningStreak, zeroBugStreak };
+    };
+
+    const streaks = calculateStreaks();
+
+    // === CONSISTENCY SCORE ===
+    const calculateConsistency = () => {
+      if (period !== 'week') return 100;
+      
+      const dailyPoints = [];
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      weekStart.setHours(0, 0, 0, 0);
+      
+      for (let i = 0; i < 7; i++) {
+        const dayStart = new Date(weekStart);
+        dayStart.setDate(dayStart.getDate() + i);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+        
+        const dayCompleted = completedTasks.filter(t => {
+          const completedAt = t.completedAt ? new Date(t.completedAt) : null;
+          return completedAt && completedAt >= dayStart && completedAt < dayEnd;
+        });
+        
+        const dayPoints = dayCompleted.reduce((sum, t) => sum + getTaskPoints(t), 0);
+        dailyPoints.push(dayPoints);
+      }
+      
+      const avgDaily = dailyPoints.reduce((a, b) => a + b, 0) / 7;
+      if (avgDaily === 0) return 100;
+      
+      const variance = dailyPoints.reduce((sum, p) => sum + Math.pow(p - avgDaily, 2), 0) / 7;
+      const stdDev = Math.sqrt(variance);
+      const coefficientOfVariation = (stdDev / avgDaily) * 100;
+      
+      // Lower variation = higher consistency
+      return Math.max(0, 100 - coefficientOfVariation);
+    };
+
+    const consistencyScore = calculateConsistency();
+
+    // === FIRST-TIME COMPLETION RATE ===
+    const firstTimeCompletions = completedTasks.filter(t => !t.reopenedCount || t.reopenedCount === 0);
+    const firstTimeRate = completedTasks.length > 0 
+      ? (firstTimeCompletions.length / completedTasks.length) * 100 
+      : 100;
+
     return {
       totalTasks: periodTasks.length,
       completedTasks: completedTasks.length,
@@ -1572,55 +1766,125 @@ export default function DailyTaskManager() {
       totalTime,
       workTime,
       learningTime,
-      workHoursTarget: period === 'week' ? 42 * 3600 : 8.4 * 3600, // 42h week, ~8.4h day
+      meetingTime,
+      meetingRatio,
+      meetingEfficiency,
+      workHoursTarget: period === 'week' ? 42 * 3600 : 8.4 * 3600,
       workHoursProgress: period === 'week' ? (workTime / (42 * 3600)) * 100 : (workTime / (8.4 * 3600)) * 100,
       avgQualityScore,
       qualityRating: avgQualityScore >= 4.5 ? 'excellent' : avgQualityScore >= 3.5 ? 'good' : avgQualityScore >= 2.5 ? 'average' : 'needs-improvement',
       estimationAccuracy,
       bugRatio,
       focusScore,
+      deepWorkBonus,
+      contextSwitchPenalty,
       ratedTasksCount: ratedTasks.length,
       unratedTasksCount: completedTasks.length - ratedTasks.length,
       taskTypeBreakdown: {
         feature: featureTasks.length,
         bug: bugTasks.length,
         support: supportTasks.length,
-        learning: learningTasks.length
+        learning: learningTasks.length,
+        meeting: meetingTasks.length
       },
       completedWorkTasks: completedWorkTasks.length,
+      // New complexity-weighted metrics
+      totalPoints,
+      completedPoints,
+      weightedCompletionRate,
+      velocity,
+      // Streaks
+      streaks,
+      // Consistency
+      consistencyScore,
+      // First-time completion
+      firstTimeRate,
+      // Enhanced productivity score
       productivityScore: calculateProductivityScore({
         completionRate: periodTasks.length > 0 ? (completedTasks.length / periodTasks.length) * 100 : 0,
+        weightedCompletionRate,
         avgQualityScore,
         estimationAccuracy,
         bugRatio,
-        focusScore
+        focusScore,
+        deepWorkBonus,
+        contextSwitchPenalty,
+        meetingEfficiency,
+        consistencyScore,
+        firstTimeRate,
+        streaks
       })
     };
   };
 
-  const calculateProductivityScore = ({ completionRate, avgQualityScore, estimationAccuracy, bugRatio, focusScore }) => {
-    // Weighted scoring
+  const calculateProductivityScore = ({ 
+    completionRate, 
+    weightedCompletionRate, 
+    avgQualityScore, 
+    estimationAccuracy, 
+    bugRatio, 
+    focusScore,
+    deepWorkBonus,
+    contextSwitchPenalty,
+    meetingEfficiency,
+    consistencyScore,
+    firstTimeRate,
+    streaks
+  }) => {
+    // Enhanced weighted scoring with new metrics
     const weights = {
-      completion: 0.25,
-      quality: 0.30,
-      estimation: 0.20,
-      bugRatio: 0.15,
-      focus: 0.10
+      weightedCompletion: 0.20,  // Complexity-weighted task completion
+      quality: 0.20,             // Quality rating
+      estimation: 0.12,          // Estimation accuracy
+      bugRatio: 0.10,            // Code quality (fewer bugs)
+      focus: 0.10,               // Focus/session length
+      meetingEfficiency: 0.08,   // Meeting time management
+      consistency: 0.10,         // Daily consistency
+      firstTime: 0.10            // First-time completion rate
     };
 
     const scores = {
-      completion: completionRate,
+      weightedCompletion: weightedCompletionRate || completionRate,
       quality: (avgQualityScore / 5) * 100,
       estimation: estimationAccuracy,
-      bugRatio: Math.max(0, 100 - (bugRatio * 2)), // Lower bug ratio = higher score
-      focus: focusScore
+      bugRatio: Math.max(0, 100 - (bugRatio * 2)),
+      focus: focusScore,
+      meetingEfficiency: meetingEfficiency || 100,
+      consistency: consistencyScore || 100,
+      firstTime: firstTimeRate || 100
     };
 
-    const totalScore = Object.keys(weights).reduce((sum, key) => {
+    let totalScore = Object.keys(weights).reduce((sum, key) => {
       return sum + (scores[key] * weights[key]);
     }, 0);
 
-    return Math.round(totalScore);
+    // Apply bonuses and penalties
+    totalScore += (deepWorkBonus || 0);           // Up to +20 for deep work
+    totalScore -= (contextSwitchPenalty || 0);    // Up to -15 for context switching
+
+    // Streak bonuses (up to +15 total)
+    if (streaks) {
+      if (streaks.completionStreak >= 5) totalScore += 5;
+      else if (streaks.completionStreak >= 3) totalScore += 3;
+      
+      if (streaks.learningStreak >= 5) totalScore += 5;
+      else if (streaks.learningStreak >= 3) totalScore += 3;
+      
+      if (streaks.zeroBugStreak >= 7) totalScore += 5;
+      else if (streaks.zeroBugStreak >= 3) totalScore += 3;
+    }
+
+    return Math.min(100, Math.max(0, Math.round(totalScore)));
+  };
+
+  // Get productivity grade based on score
+  const getProductivityGrade = (score) => {
+    if (score >= 90) return { grade: 'A+', color: 'text-green-600', bgColor: 'bg-green-100', label: 'Outstanding' };
+    if (score >= 80) return { grade: 'A', color: 'text-green-500', bgColor: 'bg-green-50', label: 'Excellent' };
+    if (score >= 70) return { grade: 'B', color: 'text-blue-500', bgColor: 'bg-blue-50', label: 'Good' };
+    if (score >= 60) return { grade: 'C', color: 'text-yellow-500', bgColor: 'bg-yellow-50', label: 'Average' };
+    if (score >= 50) return { grade: 'D', color: 'text-orange-500', bgColor: 'bg-orange-50', label: 'Needs Improvement' };
+    return { grade: 'F', color: 'text-red-500', bgColor: 'bg-red-50', label: 'Poor' };
   };
 
   const clearCompleted = () => {
@@ -1659,13 +1923,13 @@ export default function DailyTaskManager() {
       const taskDate = new Date(task.createdAt);
       taskDate.setHours(0, 0, 0, 0);
       
-      // Show tasks created today OR tasks with scheduled time today OR incomplete tasks
-      const isToday = taskDate.getTime() === today.getTime();
-      const hasScheduledTimeToday = task.scheduledTime !== null;
+      const isCreatedToday = taskDate.getTime() === today.getTime();
+      const hasScheduledTime = task.scheduledTime !== null;
       const isIncomplete = !task.completed;
+      const wasCompletedToday = task.completedAt && new Date(task.completedAt).setHours(0,0,0,0) === today.getTime();
       
-      if (!isToday && !hasScheduledTimeToday && task.completed) return false;
-      if (!isIncomplete && !isToday) return false;
+      // Show: tasks created today, tasks with scheduled time, incomplete tasks, or tasks completed today
+      if (!isCreatedToday && !hasScheduledTime && !isIncomplete && !wasCompletedToday) return false;
     }
     
     return true;
@@ -1680,6 +1944,16 @@ export default function DailyTaskManager() {
     return new Date(b.createdAt) - new Date(a.createdAt);
   });
 
+  // Calculate today's tasks and time
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayTasks = tasks.filter(t => {
+    const taskDate = new Date(t.createdAt);
+    taskDate.setHours(0, 0, 0, 0);
+    return taskDate.getTime() === todayStart.getTime() || (t.scheduledTime && !t.completed);
+  });
+  const todayTimeSpent = todayTasks.reduce((total, task) => total + getElapsedTime(task), 0);
+
   const stats = {
     total: tasks.length,
     completed: tasks.filter(t => t.completed).length,
@@ -1688,7 +1962,8 @@ export default function DailyTaskManager() {
     completionRate: tasks.length > 0 
       ? Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100)
       : 0,
-    totalTimeSpent: tasks.reduce((total, task) => total + getElapsedTime(task), 0)
+    totalTimeSpent: tasks.reduce((total, task) => total + getElapsedTime(task), 0),
+    todayTimeSpent
   };
 
   // Daily and weekly productivity metrics
@@ -1810,7 +2085,7 @@ export default function DailyTaskManager() {
               }`}
               title="Focus on today's tasks (T)"
             >
-              📅 Today View
+              📅 Today View - {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </button>
             <button
               onClick={() => setShowPomodoro(!showPomodoro)}
@@ -1959,80 +2234,84 @@ export default function DailyTaskManager() {
             {/* Productivity Score Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Today's Productivity */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow-lg p-6 border border-blue-200">
+              <div className={`rounded-lg shadow-lg p-6 border ${darkMode ? 'bg-gray-800 border-blue-700' : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200'}`}>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-800">Today's Productivity</h2>
+                  <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Today's Productivity</h2>
                   <Zap className="w-6 h-6 text-blue-600" />
                 </div>
                 
                 <div className="text-center mb-6">
-                  <div className="text-6xl font-bold text-blue-600 mb-2">
+                  <div className={`text-6xl font-bold mb-2 ${getProductivityGrade(dailyMetrics.productivityScore).color}`}>
                     {dailyMetrics.productivityScore}
                   </div>
-                  <div className="text-sm text-gray-600">Overall Score</div>
-                  <div className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mt-2 ${
-                    dailyMetrics.productivityScore >= 80 ? 'bg-green-100 text-green-800' :
-                    dailyMetrics.productivityScore >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-orange-100 text-orange-800'
-                  }`}>
-                    {dailyMetrics.productivityScore >= 80 ? 'Excellent' :
-                     dailyMetrics.productivityScore >= 60 ? 'Good' : 'Needs Improvement'}
+                  <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Overall Score</div>
+                  <div className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mt-2 ${getProductivityGrade(dailyMetrics.productivityScore).bgColor} ${getProductivityGrade(dailyMetrics.productivityScore).color}`}>
+                    {getProductivityGrade(dailyMetrics.productivityScore).grade} - {getProductivityGrade(dailyMetrics.productivityScore).label}
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Tasks Completed</span>
-                    <span className="font-semibold text-gray-800">{dailyMetrics.completedTasks} / {dailyMetrics.totalTasks}</span>
+                    <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Tasks Completed</span>
+                    <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{dailyMetrics.completedTasks} / {dailyMetrics.totalTasks}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Work Hours</span>
-                    <span className="font-semibold text-gray-800">{formatTime(dailyMetrics.workTime)} / ~8.4h</span>
+                    <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Points Earned</span>
+                    <span className="font-semibold text-blue-600">{dailyMetrics.completedPoints} / {dailyMetrics.totalPoints} pts</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Learning Time</span>
+                    <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Work Hours</span>
+                    <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{formatTime(dailyMetrics.workTime)} / ~8.4h</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Meeting Time</span>
+                    <span className={`font-semibold ${dailyMetrics.meetingRatio > 25 ? 'text-orange-600' : 'text-green-600'}`}>
+                      {formatTime(dailyMetrics.meetingTime)} ({dailyMetrics.meetingRatio.toFixed(0)}%)
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Learning Time</span>
                     <span className="font-semibold text-purple-600">{formatTime(dailyMetrics.learningTime)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Quality Score</span>
-                    <span className="font-semibold text-gray-800">{dailyMetrics.avgQualityScore.toFixed(1)} / 5.0</span>
                   </div>
                 </div>
               </div>
 
               {/* This Week's Productivity */}
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg shadow-lg p-6 border border-purple-200">
+              <div className={`rounded-lg shadow-lg p-6 border ${darkMode ? 'bg-gray-800 border-purple-700' : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200'}`}>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-800">This Week's Productivity</h2>
+                  <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>This Week's Productivity</h2>
                   <Award className="w-6 h-6 text-purple-600" />
                 </div>
                 
                 <div className="text-center mb-6">
-                  <div className="text-6xl font-bold text-purple-600 mb-2">
+                  <div className={`text-6xl font-bold mb-2 ${getProductivityGrade(weeklyMetrics.productivityScore).color}`}>
                     {weeklyMetrics.productivityScore}
                   </div>
-                  <div className="text-sm text-gray-600">Overall Score</div>
-                  <div className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mt-2 ${
-                    weeklyMetrics.productivityScore >= 80 ? 'bg-green-100 text-green-800' :
-                    weeklyMetrics.productivityScore >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-orange-100 text-orange-800'
-                  }`}>
-                    {weeklyMetrics.productivityScore >= 80 ? 'Excellent' :
-                     weeklyMetrics.productivityScore >= 60 ? 'Good' : 'Needs Improvement'}
+                  <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Overall Score</div>
+                  <div className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mt-2 ${getProductivityGrade(weeklyMetrics.productivityScore).bgColor} ${getProductivityGrade(weeklyMetrics.productivityScore).color}`}>
+                    {getProductivityGrade(weeklyMetrics.productivityScore).grade} - {getProductivityGrade(weeklyMetrics.productivityScore).label}
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Tasks Completed</span>
-                    <span className="font-semibold text-gray-800">{weeklyMetrics.completedTasks} / {weeklyMetrics.totalTasks}</span>
+                    <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Tasks Completed</span>
+                    <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{weeklyMetrics.completedTasks} / {weeklyMetrics.totalTasks}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Points Earned</span>
+                    <span className="font-semibold text-purple-600">{weeklyMetrics.completedPoints} / {weeklyMetrics.totalPoints} pts</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Velocity</span>
+                    <span className="font-semibold text-indigo-600">{weeklyMetrics.velocity.toFixed(1)} pts/day</span>
                   </div>
                   <div>
                     <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm text-gray-600">Work Hours (42h target)</span>
-                      <span className="font-semibold text-gray-800">{formatTime(weeklyMetrics.workTime)} / 42h</span>
+                      <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Work Hours (42h target)</span>
+                      <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{formatTime(weeklyMetrics.workTime)} / 42h</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className={`w-full rounded-full h-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
                       <div 
                         className={`h-2 rounded-full transition-all ${
                           weeklyMetrics.workHoursProgress >= 100 ? 'bg-green-600' :
@@ -2043,36 +2322,119 @@ export default function DailyTaskManager() {
                       ></div>
                     </div>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Learning Time</span>
-                    <span className="font-semibold text-purple-600">{formatTime(weeklyMetrics.learningTime)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Overall Time Statistics */}
+            <div className={`rounded-lg shadow-md p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                <Clock className="w-5 h-5 text-purple-600" />
+                Time Overview
+              </h3>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-purple-50'}`}>
+                  <div className="text-3xl font-bold text-purple-600 mb-1">
+                    {formatTime(stats.totalTimeSpent)}
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Quality Score</span>
-                    <span className="font-semibold text-gray-800">{weeklyMetrics.avgQualityScore.toFixed(1)} / 5.0</span>
+                  <div className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>All-Time Total</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>All tracked time</div>
+                </div>
+                
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                  <div className="text-3xl font-bold text-blue-600 mb-1">
+                    {formatTime(weeklyMetrics.totalTime)}
                   </div>
+                  <div className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>This Week</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Weekly total</div>
+                </div>
+                
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
+                  <div className="text-3xl font-bold text-green-600 mb-1">
+                    {formatTime(dailyMetrics.totalTime)}
+                  </div>
+                  <div className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Today</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Current day</div>
+                </div>
+                
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-indigo-50'}`}>
+                  <div className={`text-3xl font-bold mb-1 ${weeklyMetrics.workHoursProgress >= 100 ? 'text-green-600' : 'text-indigo-600'}`}>
+                    {weeklyMetrics.workHoursProgress.toFixed(0)}%
+                  </div>
+                  <div className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Weekly Target</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>42h goal progress</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Streaks & Consistency */}
+            <div className={`rounded-lg shadow-md p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                🔥 Streaks & Consistency
+              </h3>
+              
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-orange-50'}`}>
+                  <div className="text-3xl font-bold text-orange-600 mb-1">
+                    {weeklyMetrics.streaks?.completionStreak || 0}
+                  </div>
+                  <div className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Day Streak</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>All tasks done</div>
+                </div>
+                
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-purple-50'}`}>
+                  <div className="text-3xl font-bold text-purple-600 mb-1">
+                    {weeklyMetrics.streaks?.learningStreak || 0}
+                  </div>
+                  <div className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Learning Streak</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Days learning</div>
+                </div>
+                
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
+                  <div className="text-3xl font-bold text-green-600 mb-1">
+                    {weeklyMetrics.streaks?.zeroBugStreak || 0}
+                  </div>
+                  <div className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Zero-Bug Days</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>No bugs created</div>
+                </div>
+                
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                  <div className="text-3xl font-bold text-blue-600 mb-1">
+                    {weeklyMetrics.consistencyScore?.toFixed(0) || 0}%
+                  </div>
+                  <div className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Consistency</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Daily balance</div>
+                </div>
+                
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-teal-50'}`}>
+                  <div className="text-3xl font-bold text-teal-600 mb-1">
+                    {weeklyMetrics.firstTimeRate?.toFixed(0) || 0}%
+                  </div>
+                  <div className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>First-Time Done</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>No reopens</div>
                 </div>
               </div>
             </div>
 
             {/* Quality Metrics */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <div className={`rounded-lg shadow-md p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                 <Award className="w-5 h-5 text-yellow-600" />
                 Software Engineering Quality Metrics
               </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 {/* Estimation Accuracy */}
                 <div className="text-center">
                   <div className="text-3xl font-bold text-blue-600 mb-1">
                     {weeklyMetrics.estimationAccuracy.toFixed(0)}%
                   </div>
-                  <div className="text-sm font-medium text-gray-700 mb-2">Estimation Accuracy</div>
-                  <div className="text-xs text-gray-600">
+                  <div className={`text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Estimation Accuracy</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-600'}`}>
                     How well you estimate task duration
                   </div>
-                  <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                  <div className={`mt-2 w-full rounded-full h-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
                     <div 
                       className="bg-blue-600 h-2 rounded-full transition-all"
                       style={{ width: `${weeklyMetrics.estimationAccuracy}%` }}
@@ -2085,8 +2447,8 @@ export default function DailyTaskManager() {
                   <div className="text-3xl font-bold text-red-600 mb-1">
                     {weeklyMetrics.bugRatio.toFixed(0)}%
                   </div>
-                  <div className="text-sm font-medium text-gray-700 mb-2">Bug Ratio</div>
-                  <div className="text-xs text-gray-600">
+                  <div className={`text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Bug Ratio</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-600'}`}>
                     Bugs vs Features (lower is better)
                   </div>
                   <div className={`inline-block px-2 py-1 rounded-full text-xs font-semibold mt-2 ${
@@ -2104,67 +2466,119 @@ export default function DailyTaskManager() {
                   <div className="text-3xl font-bold text-purple-600 mb-1">
                     {weeklyMetrics.focusScore.toFixed(0)}%
                   </div>
-                  <div className="text-sm font-medium text-gray-700 mb-2">Focus Score</div>
-                  <div className="text-xs text-gray-600">
-                    Average uninterrupted work session length
+                  <div className={`text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Focus Score</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-600'}`}>
+                    Avg session length (30min = 100%)
                   </div>
-                  <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                  <div className={`mt-2 w-full rounded-full h-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
                     <div 
                       className="bg-purple-600 h-2 rounded-full transition-all"
                       style={{ width: `${weeklyMetrics.focusScore}%` }}
                     ></div>
                   </div>
                 </div>
+
+                {/* Meeting Efficiency */}
+                <div className="text-center">
+                  <div className={`text-3xl font-bold mb-1 ${weeklyMetrics.meetingEfficiency >= 80 ? 'text-green-600' : weeklyMetrics.meetingEfficiency >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                    {weeklyMetrics.meetingEfficiency.toFixed(0)}%
+                  </div>
+                  <div className={`text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Meeting Efficiency</div>
+                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-600'}`}>
+                    Meetings ≤25% of time = 100%
+                  </div>
+                  <div className={`mt-2 w-full rounded-full h-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                    <div 
+                      className={`h-2 rounded-full transition-all ${weeklyMetrics.meetingEfficiency >= 80 ? 'bg-green-600' : weeklyMetrics.meetingEfficiency >= 60 ? 'bg-yellow-600' : 'bg-red-600'}`}
+                      style={{ width: `${weeklyMetrics.meetingEfficiency}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bonuses & Penalties */}
+              <div className={`mt-6 pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className={`text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Score Modifiers</div>
+                <div className="flex flex-wrap gap-3">
+                  {weeklyMetrics.deepWorkBonus > 0 && (
+                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                      +{weeklyMetrics.deepWorkBonus.toFixed(0)} Deep Work Bonus
+                    </span>
+                  )}
+                  {weeklyMetrics.contextSwitchPenalty > 0 && (
+                    <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
+                      -{weeklyMetrics.contextSwitchPenalty.toFixed(0)} Context Switch Penalty
+                    </span>
+                  )}
+                  {weeklyMetrics.streaks?.completionStreak >= 3 && (
+                    <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium">
+                      +{weeklyMetrics.streaks.completionStreak >= 5 ? 5 : 3} Completion Streak
+                    </span>
+                  )}
+                  {weeklyMetrics.streaks?.learningStreak >= 3 && (
+                    <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
+                      +{weeklyMetrics.streaks.learningStreak >= 5 ? 5 : 3} Learning Streak
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Task Type Breakdown */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">This Week's Task Distribution</h3>
+            <div className={`rounded-lg shadow-md p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h3 className={`text-lg font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>This Week's Task Distribution</h3>
               
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
                   <Code className="w-8 h-8 text-blue-600 mx-auto mb-2" />
                   <div className="text-2xl font-bold text-blue-600">
                     {weeklyMetrics.taskTypeBreakdown.feature}
                   </div>
-                  <div className="text-sm text-gray-600">Features</div>
+                  <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Features</div>
                 </div>
                 
-                <div className="text-center p-4 bg-red-50 rounded-lg">
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-red-50'}`}>
                   <Bug className="w-8 h-8 text-red-600 mx-auto mb-2" />
                   <div className="text-2xl font-bold text-red-600">
                     {weeklyMetrics.taskTypeBreakdown.bug}
                   </div>
-                  <div className="text-sm text-gray-600">Bugs</div>
+                  <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Bugs</div>
                 </div>
                 
-                <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
                   <Wrench className="w-8 h-8 text-green-600 mx-auto mb-2" />
                   <div className="text-2xl font-bold text-green-600">
                     {weeklyMetrics.taskTypeBreakdown.support}
                   </div>
-                  <div className="text-sm text-gray-600">Support</div>
+                  <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Support</div>
                 </div>
                 
-                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-purple-50'}`}>
                   <BookOpen className="w-8 h-8 text-purple-600 mx-auto mb-2" />
                   <div className="text-2xl font-bold text-purple-600">
                     {weeklyMetrics.taskTypeBreakdown.learning}
                   </div>
-                  <div className="text-sm text-gray-600">Learning</div>
+                  <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Learning</div>
+                </div>
+                
+                <div className={`text-center p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-orange-50'}`}>
+                  <Users className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-orange-600">
+                    {weeklyMetrics.taskTypeBreakdown.meeting}
+                  </div>
+                  <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Meetings</div>
                 </div>
               </div>
             </div>
 
             {/* Quality Rating Reminder */}
             {weeklyMetrics.unratedTasksCount > 0 && (
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className={`border rounded-lg p-4 ${darkMode ? 'bg-orange-900/30 border-orange-700' : 'bg-orange-50 border-orange-200'}`}>
                 <div className="flex items-center gap-3">
                   <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0" />
                   <div>
-                    <div className="font-semibold text-orange-900">Rate Your Completed Tasks</div>
-                    <div className="text-sm text-orange-700">
+                    <div className={`font-semibold ${darkMode ? 'text-orange-300' : 'text-orange-900'}`}>Rate Your Completed Tasks</div>
+                    <div className={`text-sm ${darkMode ? 'text-orange-400' : 'text-orange-700'}`}>
                       You have {weeklyMetrics.unratedTasksCount} completed tasks without quality ratings. 
                       Rating helps improve accuracy of productivity metrics.
                     </div>
@@ -2174,17 +2588,17 @@ export default function DailyTaskManager() {
             )}
 
             {/* Insights & Recommendations */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <div className={`rounded-lg shadow-md p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                 <TrendingUp className="w-5 h-5 text-green-600" />
                 Insights & Recommendations
               </h3>
               
               <div className="space-y-3">
                 {weeklyMetrics.workHoursProgress < 80 && (
-                  <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <div className="font-medium text-yellow-900">⏰ Behind on Weekly Hours</div>
-                    <div className="text-sm text-yellow-700">
+                  <div className={`p-3 rounded-lg border ${darkMode ? 'bg-yellow-900/30 border-yellow-700' : 'bg-yellow-50 border-yellow-200'}`}>
+                    <div className={`font-medium ${darkMode ? 'text-yellow-300' : 'text-yellow-900'}`}>⏰ Behind on Weekly Hours</div>
+                    <div className={`text-sm ${darkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
                       You're at {weeklyMetrics.workHoursProgress.toFixed(0)}% of your 42-hour weekly target. 
                       Consider focusing more time on work tasks.
                     </div>
@@ -2192,9 +2606,9 @@ export default function DailyTaskManager() {
                 )}
                 
                 {weeklyMetrics.learningTime < 3600 && (
-                  <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                    <div className="font-medium text-purple-900">📚 Low Learning Time</div>
-                    <div className="text-sm text-purple-700">
+                  <div className={`p-3 rounded-lg border ${darkMode ? 'bg-purple-900/30 border-purple-700' : 'bg-purple-50 border-purple-200'}`}>
+                    <div className={`font-medium ${darkMode ? 'text-purple-300' : 'text-purple-900'}`}>📚 Low Learning Time</div>
+                    <div className={`text-sm ${darkMode ? 'text-purple-400' : 'text-purple-700'}`}>
                       Only {formatTime(weeklyMetrics.learningTime)} spent on upskilling this week. 
                       Senior engineers should invest 2-4 hours weekly in learning.
                     </div>
@@ -2202,19 +2616,29 @@ export default function DailyTaskManager() {
                 )}
                 
                 {weeklyMetrics.bugRatio > 30 && (
-                  <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                    <div className="font-medium text-red-900">🐛 High Bug Ratio</div>
-                    <div className="text-sm text-red-700">
+                  <div className={`p-3 rounded-lg border ${darkMode ? 'bg-red-900/30 border-red-700' : 'bg-red-50 border-red-200'}`}>
+                    <div className={`font-medium ${darkMode ? 'text-red-300' : 'text-red-900'}`}>🐛 High Bug Ratio</div>
+                    <div className={`text-sm ${darkMode ? 'text-red-400' : 'text-red-700'}`}>
                       {weeklyMetrics.bugRatio.toFixed(0)}% of your tasks are bug fixes. 
                       Consider code reviews, testing, or refactoring to improve code quality.
                     </div>
                   </div>
                 )}
                 
+                {weeklyMetrics.meetingRatio > 30 && (
+                  <div className={`p-3 rounded-lg border ${darkMode ? 'bg-orange-900/30 border-orange-700' : 'bg-orange-50 border-orange-200'}`}>
+                    <div className={`font-medium ${darkMode ? 'text-orange-300' : 'text-orange-900'}`}>📅 High Meeting Time</div>
+                    <div className={`text-sm ${darkMode ? 'text-orange-400' : 'text-orange-700'}`}>
+                      {weeklyMetrics.meetingRatio.toFixed(0)}% of your time is in meetings. 
+                      Consider declining non-essential meetings or batching them together.
+                    </div>
+                  </div>
+                )}
+                
                 {weeklyMetrics.estimationAccuracy < 60 && (
-                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="font-medium text-blue-900">📊 Estimation Needs Improvement</div>
-                    <div className="text-sm text-blue-700">
+                  <div className={`p-3 rounded-lg border ${darkMode ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200'}`}>
+                    <div className={`font-medium ${darkMode ? 'text-blue-300' : 'text-blue-900'}`}>📊 Estimation Needs Improvement</div>
+                    <div className={`text-sm ${darkMode ? 'text-blue-400' : 'text-blue-700'}`}>
                       Your estimation accuracy is {weeklyMetrics.estimationAccuracy.toFixed(0)}%. 
                       Review completed tasks to understand estimation patterns.
                     </div>
@@ -2222,11 +2646,20 @@ export default function DailyTaskManager() {
                 )}
                 
                 {weeklyMetrics.focusScore < 50 && (
-                  <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                    <div className="font-medium text-indigo-900">🎯 Improve Focus</div>
-                    <div className="text-sm text-indigo-700">
+                  <div className={`p-3 rounded-lg border ${darkMode ? 'bg-indigo-900/30 border-indigo-700' : 'bg-indigo-50 border-indigo-200'}`}>
+                    <div className={`font-medium ${darkMode ? 'text-indigo-300' : 'text-indigo-900'}`}>🎯 Improve Focus</div>
+                    <div className={`text-sm ${darkMode ? 'text-indigo-400' : 'text-indigo-700'}`}>
                       Your work sessions are frequently interrupted. 
                       Try time-blocking or "deep work" sessions of 90+ minutes.
+                    </div>
+                  </div>
+                )}
+
+                {weeklyMetrics.contextSwitchPenalty > 5 && (
+                  <div className={`p-3 rounded-lg border ${darkMode ? 'bg-pink-900/30 border-pink-700' : 'bg-pink-50 border-pink-200'}`}>
+                    <div className={`font-medium ${darkMode ? 'text-pink-300' : 'text-pink-900'}`}>🔄 Context Switching</div>
+                    <div className={`text-sm ${darkMode ? 'text-pink-400' : 'text-pink-700'}`}>
+                      You're switching between tasks frequently. Try to complete one task before starting another.
                     </div>
                   </div>
                 )}
@@ -2234,9 +2667,9 @@ export default function DailyTaskManager() {
                 {weeklyMetrics.productivityScore >= 80 && 
                  weeklyMetrics.workHoursProgress >= 80 && 
                  weeklyMetrics.learningTime >= 3600 && (
-                  <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                    <div className="font-medium text-green-900">🌟 Excellent Performance!</div>
-                    <div className="text-sm text-green-700">
+                  <div className={`p-3 rounded-lg border ${darkMode ? 'bg-green-900/30 border-green-700' : 'bg-green-50 border-green-200'}`}>
+                    <div className={`font-medium ${darkMode ? 'text-green-300' : 'text-green-900'}`}>🌟 Excellent Performance!</div>
+                    <div className={`text-sm ${darkMode ? 'text-green-400' : 'text-green-700'}`}>
                       You're hitting all your targets: high productivity score, on track for 42h work week, 
                       and investing in learning. Keep up the great work!
                     </div>
@@ -2251,20 +2684,20 @@ export default function DailyTaskManager() {
 
         {/* Stats Dashboard */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-lg p-4 shadow-md">
-            <div className="text-sm text-gray-600 mb-1">Total Tasks</div>
-            <div className="text-2xl font-bold text-gray-800">{stats.total}</div>
+          <div className={`rounded-lg p-4 shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`text-sm mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total Tasks</div>
+            <div className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{stats.total}</div>
           </div>
-          <div className="bg-white rounded-lg p-4 shadow-md">
-            <div className="text-sm text-gray-600 mb-1">Active</div>
+          <div className={`rounded-lg p-4 shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`text-sm mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Active</div>
             <div className="text-2xl font-bold text-blue-600">{stats.active}</div>
           </div>
-          <div className="bg-white rounded-lg p-4 shadow-md">
-            <div className="text-sm text-gray-600 mb-1">Completed</div>
+          <div className={`rounded-lg p-4 shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`text-sm mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Completed</div>
             <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
           </div>
-          <div className={`bg-white rounded-lg p-4 shadow-md ${stats.stale > 0 ? 'ring-2 ring-orange-400' : ''}`}>
-            <div className="text-sm text-gray-600 mb-1 flex items-center gap-1">
+          <div className={`rounded-lg p-4 shadow-md ${stats.stale > 0 ? 'ring-2 ring-orange-400' : ''} ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`text-sm mb-1 flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
               <AlertCircle className="w-3 h-3" />
               Stale (2+ days)
             </div>
@@ -2272,12 +2705,12 @@ export default function DailyTaskManager() {
               {stats.stale}
             </div>
           </div>
-          <div className="bg-white rounded-lg p-4 shadow-md">
-            <div className="text-sm text-gray-600 mb-1 flex items-center gap-1">
+          <div className={`rounded-lg p-4 shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`text-sm mb-1 flex items-center gap-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
               <Clock className="w-3 h-3" />
-              Total Time
+              Today's Time
             </div>
-            <div className="text-2xl font-bold text-purple-600">{formatTime(stats.totalTimeSpent)}</div>
+            <div className="text-2xl font-bold text-purple-600">{formatTime(stats.todayTimeSpent)}</div>
           </div>
         </div>
 
@@ -3090,11 +3523,11 @@ export default function DailyTaskManager() {
                 📋 Tasks
               </h3>
               <div className={`px-2 py-1 rounded-full text-xs font-bold ${darkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`}>
-                {filteredTasks.filter(t => !isMeetingType(t.type) && !t.completed && !t.isTimerRunning && !t.timeSpent).length} pending
+                {filteredTasks.filter(t => !isMeetingType(t.type) && !t.completed && !t.isTimerRunning && !t.timeSpent && !t.timerStartedAt && (!t.sessions || t.sessions.length === 0)).length} pending
               </div>
             </div>
           </div>
-          {filteredTasks.filter(t => !isMeetingType(t.type) && !t.completed && !t.isTimerRunning && !t.timeSpent).length === 0 ? (
+          {filteredTasks.filter(t => !isMeetingType(t.type) && !t.completed && !t.isTimerRunning && !t.timeSpent && !t.timerStartedAt && (!t.sessions || t.sessions.length === 0)).length === 0 ? (
             <div className={`p-12 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               {filter === 'all' && 'No tasks yet. Add your first task above!'}
               {filter === 'active' && 'No pending tasks. Great job! 🎉'}
@@ -3102,7 +3535,7 @@ export default function DailyTaskManager() {
             </div>
           ) : (
             <div className={darkMode ? 'divide-y divide-gray-700' : 'divide-y divide-gray-200'}>
-              {filteredTasks.filter(t => !isMeetingType(t.type) && !t.completed && !t.isTimerRunning && !t.timeSpent).map((task) => {
+              {filteredTasks.filter(t => !isMeetingType(t.type) && !t.completed && !t.isTimerRunning && !t.timeSpent && !t.timerStartedAt && (!t.sessions || t.sessions.length === 0)).map((task) => {
                 const elapsedTime = getElapsedTime(task);
                 const taskAge = getTaskAge(task);
                 const isStale = isTaskStale(task);
