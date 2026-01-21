@@ -3084,6 +3084,16 @@ export default function DailyTaskManager() {
 
         {/* Task List (excluding meetings/standups) */}
         <div className={`rounded-lg shadow-md overflow-hidden mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className={`px-4 py-3 ${darkMode ? 'bg-gray-700 border-b border-gray-600' : 'bg-gray-50 border-b border-gray-200'}`}>
+            <div className="flex items-center justify-between">
+              <h3 className={`font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                📋 Tasks
+              </h3>
+              <div className={`px-2 py-1 rounded-full text-xs font-bold ${darkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`}>
+                {filteredTasks.filter(t => !isMeetingType(t.type) && !t.completed).length} active
+              </div>
+            </div>
+          </div>
           {filteredTasks.filter(t => !isMeetingType(t.type) || t.completed).length === 0 ? (
             <div className={`p-12 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               {filter === 'all' && 'No tasks yet. Add your first task above!'}
