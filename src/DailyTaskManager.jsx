@@ -3490,7 +3490,8 @@ export default function DailyTaskManager() {
         )}
 
         {/* Completed Tasks Section - Above Organization Overview */}
-        {stats.completed > 0 && (
+        {/* Only show completed tasks that were actually started (timeSpent > 0) */}
+        {tasks.filter(t => t.completed && t.timeSpent > 0).length > 0 && (
           <div className={`rounded-lg shadow-md p-6 mt-8 mb-6 ${darkMode ? 'bg-gray-800 border-2 border-green-700' : 'bg-white border-2 border-green-200'}`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className={`font-semibold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
@@ -3500,13 +3501,13 @@ export default function DailyTaskManager() {
               <div className={`px-3 py-1 rounded-full text-sm font-bold ${
                 darkMode ? 'bg-green-600 text-white' : 'bg-green-500 text-white'
               }`}>
-                {stats.completed} Completed
+                {tasks.filter(t => t.completed && t.timeSpent > 0).length} Completed
               </div>
             </div>
             
             <div className={`space-y-2 max-h-96 overflow-y-auto ${darkMode ? 'divide-y divide-gray-700' : 'divide-y divide-gray-200'}`}>
               {tasks
-                .filter(t => t.completed)
+                .filter(t => t.completed && t.timeSpent > 0)
                 .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))
                 .map(task => {
                   const typeInfo = getTaskTypeInfo(task.type);
