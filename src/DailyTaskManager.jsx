@@ -3082,7 +3082,7 @@ export default function DailyTaskManager() {
           </div>
         )}
 
-        {/* Task List (excluding meetings/standups) */}
+        {/* Task List (excluding meetings/standups and completed tasks) */}
         <div className={`rounded-lg shadow-md overflow-hidden mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
           <div className={`px-4 py-3 ${darkMode ? 'bg-gray-700 border-b border-gray-600' : 'bg-gray-50 border-b border-gray-200'}`}>
             <div className="flex items-center justify-between">
@@ -3094,7 +3094,7 @@ export default function DailyTaskManager() {
               </div>
             </div>
           </div>
-          {filteredTasks.filter(t => !isMeetingType(t.type) || t.completed).length === 0 ? (
+          {filteredTasks.filter(t => !isMeetingType(t.type) && !t.completed).length === 0 ? (
             <div className={`p-12 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               {filter === 'all' && 'No tasks yet. Add your first task above!'}
               {filter === 'active' && 'No active tasks. Great job! 🎉'}
@@ -3102,7 +3102,7 @@ export default function DailyTaskManager() {
             </div>
           ) : (
             <div className={darkMode ? 'divide-y divide-gray-700' : 'divide-y divide-gray-200'}>
-              {filteredTasks.filter(t => !isMeetingType(t.type) || t.completed).map((task) => {
+              {filteredTasks.filter(t => !isMeetingType(t.type) && !t.completed).map((task) => {
                 const elapsedTime = getElapsedTime(task);
                 const taskAge = getTaskAge(task);
                 const isStale = isTaskStale(task);
