@@ -6,10 +6,14 @@ const TASK_TYPES = [
   { value: 'bug', label: 'Bug Fix', icon: Bug, color: 'red' },
   { value: 'support', label: 'Support', icon: Wrench, color: 'green' },
   { value: 'learning', label: 'Learning', icon: BookOpen, color: 'purple' },
-  { value: 'meeting', label: 'Meeting', icon: Users, color: 'orange' },
+  { value: 'standup', label: 'Standup', icon: Users, color: 'amber', group: 'meetings' },
+  { value: 'meeting', label: 'Meeting', icon: Users, color: 'orange', group: 'meetings' },
   { value: 'analysis', label: 'Analysis', icon: Target, color: 'indigo' },
   { value: 'documentation', label: 'Documentation', icon: FileText, color: 'teal' }
 ];
+
+// Helper to check if task type is a meeting/standup
+const isMeetingType = (type) => ['standup', 'meeting'].includes(type);
 
 const TASK_SIZES = [
   { value: 'xs', label: 'XS (< 1h)', hours: 0.5 },
@@ -38,16 +42,16 @@ const DEFAULT_ORGANIZATIONS = [
 ];
 
 const MEETING_TEMPLATES = [
-  { label: 'Quick Standup (15 min)', duration: 0.25, time: '09:00' },
-  { label: 'Standard Standup (30 min)', duration: 0.5, time: '09:30' },
-  { label: 'Team Sync (15 min)', duration: 0.25, time: '14:00' },
-  { label: 'Team Sync (30 min)', duration: 0.5, time: '14:30' },
-  { label: 'Sprint Planning', duration: 2, time: '10:00' },
-  { label: 'Sprint Review', duration: 1, time: '15:00' },
-  { label: 'Sprint Retrospective', duration: 1, time: '16:00' },
-  { label: 'Points Confirmation', duration: 1, time: '11:00' },
-  { label: 'Tech Review', duration: 1, time: '13:00' },
-  { label: '1-on-1 (30 min)', duration: 0.5, time: '16:30' }
+  { label: 'Quick Standup (15 min)', duration: 0.25, time: '09:00', autoComplete: true, durationMinutes: 15, type: 'standup' },
+  { label: 'Standard Standup (30 min)', duration: 0.5, time: '09:30', autoComplete: true, durationMinutes: 30, type: 'standup' },
+  { label: 'Team Sync (15 min)', duration: 0.25, time: '14:00', autoComplete: true, durationMinutes: 15, type: 'standup' },
+  { label: 'Team Sync (30 min)', duration: 0.5, time: '14:30', autoComplete: true, durationMinutes: 30, type: 'standup' },
+  { label: 'Sprint Planning', duration: 2, time: '10:00', autoComplete: false, durationMinutes: 120, type: 'meeting' },
+  { label: 'Sprint Review', duration: 1, time: '15:00', autoComplete: false, durationMinutes: 60, type: 'meeting' },
+  { label: 'Sprint Retrospective', duration: 1, time: '16:00', autoComplete: false, durationMinutes: 60, type: 'meeting' },
+  { label: 'Points Confirmation', duration: 1, time: '11:00', autoComplete: false, durationMinutes: 60, type: 'meeting' },
+  { label: 'Tech Review', duration: 1, time: '13:00', autoComplete: false, durationMinutes: 60, type: 'meeting' },
+  { label: '1-on-1 (30 min)', duration: 0.5, time: '16:30', autoComplete: true, durationMinutes: 30, type: 'meeting' }
 ];
 
 const PRIORITY_LEVELS = [
@@ -118,6 +122,8 @@ export default function DailyTaskManager() {
   const [newTaskTags, setNewTaskTags] = useState([]);
   const [newTaskRecurrence, setNewTaskRecurrence] = useState('none');
   const [newTaskCustomDays, setNewTaskCustomDays] = useState([1, 2, 3, 4, 5]); // Default: weekdays
+  const [newTaskAutoComplete, setNewTaskAutoComplete] = useState(false);
+  const [newTaskDuration, setNewTaskDuration] = useState(30); // Default 30 minutes
   const [filter, setFilter] = useState('all');
   const [orgFilter, setOrgFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
@@ -466,6 +472,54 @@ export default function DailyTaskManager() {
           }
         }
       });
+
+      // Auto-complete tasks that have been running for their specified duration
+      tasks.forEach(task => {
+        if (task.isTimerRunning && task.autoComplete && task.durationMinutes && task.timerStartedAt) {
+          const startedAt = new Date(task.timerStartedAt);
+          const elapsedMinutes = (now - startedAt) / (1000 * 60);
+          
+          // Check if we haven't already auto-completed this task today
+          const lastAutoComplete = localStorage.getItem(`autoComplete_${task.id}`);
+          const todayDate = now.toDateString();
+          const alreadyCompletedToday = lastAutoComplete === todayDate;
+          
+          if (elapsedMinutes >= task.durationMinutes && !alreadyCompletedToday && !task.completed) {
+            // Calculate actual time spent
+            const actualTimeSpent = task.durationMinutes * 60; // Convert to seconds
+            
+            // Auto-complete the task!
+            setTasks(prevTasks => prevTasks.map(t => 
+              t.id === task.id 
+                ? { 
+                    ...t, 
+                    isTimerRunning: false, 
+                    completed: true,
+                    completedAt: new Date().toISOString(),
+                    timeSpent: (t.timeSpent || 0) + actualTimeSpent,
+                    sessions: [...(t.sessions || []), {
+                      startedAt: t.timerStartedAt,
+                      endedAt: new Date().toISOString(),
+                      duration: actualTimeSpent
+                    }]
+                  }
+                : t
+            ));
+            
+            // Mark as auto-completed today
+            localStorage.setItem(`autoComplete_${task.id}`, todayDate);
+            
+            // Show notification
+            const taskTypeInfo = getTaskTypeInfo(task.type);
+            showNotification(
+              `✅ ${taskTypeInfo.label} Completed`,
+              `"${task.text}" was automatically completed after ${task.durationMinutes} minutes`,
+              'completed',
+              task.id
+            );
+          }
+        }
+      });
     };
 
     notificationCheckRef.current = setInterval(checkReminders, 60000); // Check every minute
@@ -535,7 +589,9 @@ export default function DailyTaskManager() {
         timeSpent: 0,
         isTimerRunning: false,
         timerStartedAt: null,
-        sessions: []
+        sessions: [],
+        autoComplete: newTaskAutoComplete,
+        durationMinutes: newTaskAutoComplete ? newTaskDuration : null
       };
       setTasks([task, ...tasks]);
       setNewTask('');
@@ -545,6 +601,8 @@ export default function DailyTaskManager() {
       setNewTaskTags([]);
       setNewTaskRecurrence('none');
       setNewTaskCustomDays([1, 2, 3, 4, 5]);
+      setNewTaskAutoComplete(false);
+      setNewTaskDuration(30);
     }
   };
 
@@ -552,7 +610,7 @@ export default function DailyTaskManager() {
     const task = {
       id: Date.now(),
       text: template.label,
-      type: 'meeting',
+      type: template.type || 'meeting',
       size: 'xs',
       organization: newTaskOrg,
       priority: 'medium',
@@ -570,7 +628,9 @@ export default function DailyTaskManager() {
       timeSpent: 0,
       isTimerRunning: false,
       timerStartedAt: null,
-      sessions: []
+      sessions: [],
+      autoComplete: template.autoComplete || false,
+      durationMinutes: template.durationMinutes || 30
     };
     setTasks([task, ...tasks]);
     setShowMeetingTemplates(false);
@@ -1368,7 +1428,10 @@ export default function DailyTaskManager() {
         red: 'border-red-500 bg-red-50 text-red-700',
         green: 'border-green-500 bg-green-50 text-green-700',
         purple: 'border-purple-500 bg-purple-50 text-purple-700',
-        orange: 'border-orange-500 bg-orange-50 text-orange-700'
+        orange: 'border-orange-500 bg-orange-50 text-orange-700',
+        amber: 'border-amber-500 bg-amber-50 text-amber-700',
+        indigo: 'border-indigo-500 bg-indigo-50 text-indigo-700',
+        teal: 'border-teal-500 bg-teal-50 text-teal-700'
       };
       return `${baseClasses} ${colorClasses[typeColor] || colorClasses.blue}`;
     }
@@ -1382,7 +1445,10 @@ export default function DailyTaskManager() {
       red: 'bg-red-100 text-red-700',
       green: 'bg-green-100 text-green-700',
       purple: 'bg-purple-100 text-purple-700',
-      orange: 'bg-orange-100 text-orange-700'
+      orange: 'bg-orange-100 text-orange-700',
+      amber: 'bg-amber-100 text-amber-700',
+      indigo: 'bg-indigo-100 text-indigo-700',
+      teal: 'bg-teal-100 text-teal-700'
     };
     return `inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${colorClasses[typeColor] || colorClasses.blue}`;
   };
@@ -2530,6 +2596,49 @@ export default function DailyTaskManager() {
               </button>
             </div>
 
+            {/* Auto-Complete Settings (shown when scheduled time is set) */}
+            {newTaskTime && (
+              <div className={`p-4 rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-blue-50 border-blue-200'}`}>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newTaskAutoComplete}
+                      onChange={(e) => setNewTaskAutoComplete(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                      🔄 Auto-complete after duration
+                    </span>
+                  </label>
+                  {newTaskAutoComplete && (
+                    <div className="flex items-center gap-2">
+                      <label className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Duration:</label>
+                      <select
+                        value={newTaskDuration}
+                        onChange={(e) => setNewTaskDuration(Number(e.target.value))}
+                        className={`px-3 py-1 border rounded-lg text-sm ${
+                          darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'border-gray-300'
+                        }`}
+                      >
+                        <option value={15}>15 min</option>
+                        <option value={30}>30 min</option>
+                        <option value={45}>45 min</option>
+                        <option value={60}>1 hour</option>
+                        <option value={90}>1.5 hours</option>
+                        <option value={120}>2 hours</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+                {newTaskAutoComplete && (
+                  <p className={`mt-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    ✨ Task will start at {newTaskTime} and automatically complete after {newTaskDuration} minutes
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Priority, Tags, and Recurrence */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
               {/* Priority Selector */}
@@ -2835,9 +2944,147 @@ export default function DailyTaskManager() {
           </div>
         </div>
 
-        {/* Task List */}
+        {/* Standups & Meetings Section */}
+        {filteredTasks.filter(t => isMeetingType(t.type) && !t.completed).length > 0 && (
+          <div className={`rounded-lg shadow-md overflow-hidden mb-6 ${darkMode ? 'bg-gray-800 border-2 border-orange-600' : 'bg-white border-2 border-orange-300'}`}>
+            <div className={`px-4 py-3 ${darkMode ? 'bg-orange-900/30 border-b border-orange-700' : 'bg-orange-50 border-b border-orange-200'}`}>
+              <div className="flex items-center justify-between">
+                <h3 className={`font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  <Users className="w-5 h-5 text-orange-500" />
+                  📅 Standups & Meetings
+                </h3>
+                <div className={`px-2 py-1 rounded-full text-xs font-bold ${darkMode ? 'bg-orange-600 text-white' : 'bg-orange-500 text-white'}`}>
+                  {filteredTasks.filter(t => isMeetingType(t.type) && !t.completed).length} scheduled
+                </div>
+              </div>
+            </div>
+            <div className={darkMode ? 'divide-y divide-gray-700' : 'divide-y divide-gray-200'}>
+              {filteredTasks
+                .filter(t => isMeetingType(t.type) && !t.completed)
+                .sort((a, b) => {
+                  // Sort by scheduled time first
+                  if (a.scheduledTime && b.scheduledTime) {
+                    return a.scheduledTime.localeCompare(b.scheduledTime);
+                  }
+                  if (a.scheduledTime) return -1;
+                  if (b.scheduledTime) return 1;
+                  return 0;
+                })
+                .map((task) => {
+                  const elapsedTime = getElapsedTime(task);
+                  const typeInfo = getTaskTypeInfo(task.type);
+                  const TypeIcon = typeInfo.icon;
+                  const orgInfo = getOrgInfo(task.organization);
+
+                  return (
+                    <div
+                      key={task.id}
+                      className={`p-4 transition-colors group ${
+                        darkMode ? 'hover:bg-gray-750' : 'hover:bg-orange-50/50'
+                      } ${
+                        task.isTimerRunning
+                          ? 'border-l-4 border-green-500 bg-green-50/50 dark:bg-green-900/20'
+                          : task.timeSpent > 0
+                            ? 'border-l-4 border-orange-500'
+                            : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => toggleTask(task.id)}
+                          className={`flex-shrink-0 ${darkMode ? 'text-gray-400 hover:text-blue-400' : 'text-gray-400 hover:text-blue-600'}`}
+                        >
+                          <Circle className="w-6 h-6" />
+                        </button>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {task.type === 'standup' ? '🧍' : '👥'} {task.text}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                              task.type === 'standup' 
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
+                                : 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                            }`}>
+                              <TypeIcon className="w-3 h-3" />
+                              {typeInfo.label}
+                            </span>
+                            <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {orgInfo.label}
+                            </span>
+                            {task.scheduledTime && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                                task.isTimerRunning
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 animate-pulse'
+                                  : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                              }`}>
+                                ⏰ {task.scheduledTime}
+                                {task.autoComplete && task.durationMinutes && ` (${task.durationMinutes}min)`}
+                              </span>
+                            )}
+                            {task.isTimerRunning && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                🔴 LIVE - {formatTime(elapsedTime)}
+                              </span>
+                            )}
+                            {!task.isTimerRunning && task.timeSpent > 0 && (
+                              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                ⏱️ {formatTime(task.timeSpent)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Timer Controls */}
+                        <div className="flex items-center gap-1">
+                          {!task.isTimerRunning ? (
+                            <button
+                              onClick={() => startTimer(task.id)}
+                              className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900 rounded-lg transition-colors"
+                              title="Start Timer"
+                            >
+                              <Play className="w-5 h-5" />
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => pauseTimer(task.id)}
+                                className="p-2 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900 rounded-lg transition-colors"
+                                title="Pause Timer"
+                              >
+                                <Pause className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => stopTimer(task.id)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900 rounded-lg transition-colors"
+                                title="Complete"
+                              >
+                                <Square className="w-5 h-5" />
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => deleteTask(task.id)}
+                            className={`flex-shrink-0 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100 ${
+                              darkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-700' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                            }`}
+                            title="Delete"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
+        {/* Task List (excluding meetings/standups) */}
         <div className={`rounded-lg shadow-md overflow-hidden mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          {filteredTasks.length === 0 ? (
+          {filteredTasks.filter(t => !isMeetingType(t.type) || t.completed).length === 0 ? (
             <div className={`p-12 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               {filter === 'all' && 'No tasks yet. Add your first task above!'}
               {filter === 'active' && 'No active tasks. Great job! 🎉'}
@@ -2845,7 +3092,7 @@ export default function DailyTaskManager() {
             </div>
           ) : (
             <div className={darkMode ? 'divide-y divide-gray-700' : 'divide-y divide-gray-200'}>
-              {filteredTasks.map((task) => {
+              {filteredTasks.filter(t => !isMeetingType(t.type) || t.completed).map((task) => {
                 const elapsedTime = getElapsedTime(task);
                 const taskAge = getTaskAge(task);
                 const isStale = isTaskStale(task);
