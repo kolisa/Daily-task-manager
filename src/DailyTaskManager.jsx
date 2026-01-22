@@ -1428,6 +1428,11 @@ export default function DailyTaskManager() {
   };
 
   const formatTime = (seconds) => {
+    // Handle NaN, undefined, or negative values
+    if (!seconds || isNaN(seconds) || seconds < 0) {
+      return '0s';
+    }
+    seconds = Math.floor(seconds);
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
@@ -1494,10 +1499,14 @@ export default function DailyTaskManager() {
     let totalSeconds = task.timeSpent || 0;
     if (task.isTimerRunning && task.timerStartedAt) {
       const startedAt = new Date(task.timerStartedAt).getTime();
-      const currentSession = Math.floor((currentTime - startedAt) / 1000);
-      totalSeconds += currentSession;
+      if (!isNaN(startedAt)) {
+        const currentSession = Math.floor((currentTime - startedAt) / 1000);
+        if (currentSession > 0) {
+          totalSeconds += currentSession;
+        }
+      }
     }
-    return totalSeconds;
+    return isNaN(totalSeconds) ? 0 : totalSeconds;
   };
 
   const getTaskAge = (task) => {
