@@ -64,6 +64,7 @@ const DEFAULT_ORGANIZATIONS = [
   { value: 'webafrica', label: 'Web Africa', icon: Briefcase, color: 'blue', type: 'work' },
   { value: 'lexisnexis', label: 'LexisNexis', icon: Briefcase, color: 'indigo', type: 'work' },
   { value: 'tut', label: 'TUT (Tshwane University of Technology)', icon: Briefcase, color: 'cyan', type: 'work' },
+  { value: 'personal-dev', label: 'Personal Development', icon: BookOpen, color: 'green', type: 'personal' },
   { value: 'bhukuveni', label: 'Bhukuveni', icon: Coffee, color: 'purple', type: 'personal' },
   { value: 'khoi', label: 'Khoi', icon: Coffee, color: 'pink', type: 'personal' },
   { value: 'nowmail', label: 'Nowmail', icon: Coffee, color: 'emerald', type: 'personal' }
@@ -188,6 +189,12 @@ export default function DailyTaskManager() {
   const [showBreakMenu, setShowBreakMenu] = useState(false);
   const [activeBreak, setActiveBreak] = useState(null); // { type, startedAt }
   const [todayBreaks, setTodayBreaks] = useState([]); // Array of completed breaks
+  const [newTaskStartFromNext, setNewTaskStartFromNext] = useState(true); // Start recurring from next occurrence
+  const [focusMode, setFocusMode] = useState(false); // Focus mode - hide everything except active task
+  const [showUpcomingTasks, setShowUpcomingTasks] = useState(false); // This week preview
+  const [taskTemplates, setTaskTemplates] = useState([]); // Saved task templates
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [expandedSubtasks, setExpandedSubtasks] = useState({}); // Track which tasks have expanded subtasks
   const timerRef = useRef(null);
   const notificationCheckRef = useRef(null);
   const pomodoroTimerRef = useRef(null);
@@ -284,6 +291,12 @@ export default function DailyTaskManager() {
     const savedActiveBreak = localStorage.getItem('activeBreak');
     if (savedActiveBreak) {
       setActiveBreak(JSON.parse(savedActiveBreak));
+    }
+
+    // Load task templates
+    const savedTemplates = localStorage.getItem('taskTemplates');
+    if (savedTemplates) {
+      setTaskTemplates(JSON.parse(savedTemplates));
     }
 
     // Check notification permission
@@ -443,15 +456,23 @@ export default function DailyTaskManager() {
       if (!document.hidden) {
         // Tab is now visible - force immediate update
         setCurrentTime(Date.now());
+        // Also check for recurring tasks when tab becomes visible
+        checkRecurringTasks();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
+    // Also check recurring tasks every hour
+    const recurringCheckInterval = setInterval(() => {
+      checkRecurringTasks();
+    }, 60 * 60 * 1000); // Every hour
+    
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(recurringCheckInterval);
     };
-  }, []);
+  }, [tasks]); // Re-run when tasks change to get latest task list
 
   // Check for reminders every minute
   useEffect(() => {
@@ -507,16 +528,26 @@ export default function DailyTaskManager() {
           const [schedHours, schedMins] = task.scheduledTime.split(':').map(Number);
           const currentHours = now.getHours();
           const currentMins = now.getMinutes();
+          const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
           
           // Check if we're at or past the scheduled time (within same minute)
           const isScheduledTime = currentHours === schedHours && currentMins === schedMins;
+          
+          // Check if today is a valid day for this task based on recurrence
+          let isTodayValidDay = true;
+          if (task.recurrence === 'custom' && task.customDays) {
+            isTodayValidDay = task.customDays.includes(currentDay);
+          } else if (task.recurrence === 'weekdays') {
+            isTodayValidDay = currentDay >= 1 && currentDay <= 5; // Mon-Fri
+          }
+          // For 'daily', 'weekly', 'biweekly', 'monthly', 'none' - allow any day
           
           // Check if we haven't already auto-started this task today
           const lastAutoStart = localStorage.getItem(`autoStart_${task.id}`);
           const todayDate = now.toDateString();
           const alreadyStartedToday = lastAutoStart === todayDate;
           
-          if (isScheduledTime && !alreadyStartedToday) {
+          if (isScheduledTime && isTodayValidDay && !alreadyStartedToday) {
             // Auto-start the timer!
             setTasks(prevTasks => prevTasks.map(t => 
               t.id === task.id 
@@ -634,6 +665,19 @@ export default function DailyTaskManager() {
     e.preventDefault();
     if (newTask.trim()) {
       const sizeData = TASK_SIZES.find(s => s.value === newTaskSize);
+      const now = new Date();
+      const currentDay = now.getDay();
+      
+      // Determine if task should be hidden today based on "start from next occurrence"
+      let shouldHideToday = false;
+      if (newTaskRecurrence !== 'none' && newTaskStartFromNext) {
+        if (newTaskRecurrence === 'custom' && newTaskCustomDays) {
+          shouldHideToday = !newTaskCustomDays.includes(currentDay);
+        } else if (newTaskRecurrence === 'weekdays') {
+          shouldHideToday = currentDay === 0 || currentDay === 6; // Hide on weekends
+        }
+      }
+      
       const task = {
         id: Date.now(),
         text: newTask.trim(),
@@ -648,16 +692,18 @@ export default function DailyTaskManager() {
         recurrence: newTaskRecurrence,
         customDays: newTaskRecurrence === 'custom' ? [...newTaskCustomDays] : null,
         lastRecurrence: newTaskRecurrence !== 'none' ? new Date().toISOString() : null,
-        completed: false,
+        completed: shouldHideToday ? true : false, // Mark as "completed" to hide if not today's day
+        skippedToday: shouldHideToday, // Flag to indicate it was auto-skipped
         qualityRating: 'unrated',
         createdAt: new Date().toISOString(),
-        completedAt: null,
+        completedAt: shouldHideToday ? new Date().toISOString() : null,
         timeSpent: 0,
         isTimerRunning: false,
         timerStartedAt: null,
         sessions: [],
         autoComplete: newTaskAutoComplete,
-        durationMinutes: newTaskAutoComplete ? newTaskDuration : null
+        durationMinutes: newTaskAutoComplete ? newTaskDuration : null,
+        subtasks: [], // Support for subtasks
       };
       setTasks([task, ...tasks]);
       setNewTask('');
@@ -669,6 +715,7 @@ export default function DailyTaskManager() {
       setNewTaskCustomDays([1, 2, 3, 4, 5]);
       setNewTaskAutoComplete(false);
       setNewTaskDuration(30);
+      setNewTaskStartFromNext(true);
     }
   };
 
@@ -706,25 +753,33 @@ export default function DailyTaskManager() {
   const checkRecurringTasks = () => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStr = today.toDateString();
 
     tasks.forEach(task => {
-      if (task.recurrence === 'none' || !task.lastRecurrence) return;
+      if (task.recurrence === 'none' || !task.recurrence) return;
+      
+      // Skip if task doesn't have lastRecurrence (shouldn't happen, but safety check)
+      if (!task.lastRecurrence) return;
 
       const lastRecur = new Date(task.lastRecurrence);
-      const daysSince = Math.floor((now - lastRecur) / (1000 * 60 * 60 * 24));
+      const lastRecurDate = new Date(lastRecur.getFullYear(), lastRecur.getMonth(), lastRecur.getDate());
+      
+      // Check if we already created a recurring instance today
+      if (lastRecurDate.toDateString() === todayStr) return;
+      
+      const daysSince = Math.floor((today - lastRecurDate) / (1000 * 60 * 60 * 24));
 
       let shouldRecur = false;
+      const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
 
       switch(task.recurrence) {
         case 'daily':
           shouldRecur = daysSince >= 1;
           break;
         case 'weekdays':
-          const dayOfWeek = now.getDay();
-          shouldRecur = daysSince >= 1 && dayOfWeek >= 1 && dayOfWeek <= 5; // Mon-Fri
+          shouldRecur = daysSince >= 1 && currentDay >= 1 && currentDay <= 5; // Mon-Fri
           break;
         case 'custom':
-          const currentDay = now.getDay();
           shouldRecur = daysSince >= 1 && task.customDays && task.customDays.includes(currentDay);
           break;
         case 'weekly':
@@ -1495,6 +1550,168 @@ export default function DailyTaskManager() {
     return Math.floor((currentTime - activeBreak.startedAt) / 1000);
   };
 
+  // Skip today's scheduled task (won't run today, but recurrence continues)
+  const skipTaskToday = (taskId) => {
+    const todayDate = new Date().toDateString();
+    localStorage.setItem(`skipped_${taskId}_${todayDate}`, 'true');
+    // Stop the timer if running
+    setTasks(prevTasks => prevTasks.map(t => 
+      t.id === taskId 
+        ? { ...t, isTimerRunning: false, skippedToday: true }
+        : t
+    ));
+  };
+
+  // Check if task is skipped today
+  const isTaskSkippedToday = (taskId) => {
+    const todayDate = new Date().toDateString();
+    return localStorage.getItem(`skipped_${taskId}_${todayDate}`) === 'true';
+  };
+
+  // Get upcoming tasks for the week
+  const getUpcomingTasks = () => {
+    const upcoming = [];
+    const now = new Date();
+    
+    for (let i = 1; i <= 7; i++) {
+      const futureDate = new Date(now);
+      futureDate.setDate(now.getDate() + i);
+      const dayOfWeek = futureDate.getDay();
+      const dateStr = futureDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      
+      const tasksForDay = tasks.filter(task => {
+        if (task.completed && !task.recurrence) return false;
+        if (!task.recurrence || task.recurrence === 'none') return false;
+        
+        switch (task.recurrence) {
+          case 'daily':
+            return true;
+          case 'weekdays':
+            return dayOfWeek >= 1 && dayOfWeek <= 5;
+          case 'custom':
+            return task.customDays && task.customDays.includes(dayOfWeek);
+          case 'weekly':
+            const createdDay = new Date(task.createdAt).getDay();
+            return dayOfWeek === createdDay;
+          default:
+            return false;
+        }
+      });
+      
+      if (tasksForDay.length > 0) {
+        upcoming.push({ date: dateStr, dayOfWeek, tasks: tasksForDay });
+      }
+    }
+    
+    return upcoming;
+  };
+
+  // Subtask functions
+  const addSubtask = (taskId, subtaskText) => {
+    if (!subtaskText.trim()) return;
+    setTasks(prevTasks => prevTasks.map(task => {
+      if (task.id === taskId) {
+        const subtasks = task.subtasks || [];
+        return {
+          ...task,
+          subtasks: [...subtasks, {
+            id: Date.now(),
+            text: subtaskText.trim(),
+            completed: false,
+            createdAt: new Date().toISOString()
+          }]
+        };
+      }
+      return task;
+    }));
+  };
+
+  const toggleSubtask = (taskId, subtaskId) => {
+    setTasks(prevTasks => prevTasks.map(task => {
+      if (task.id === taskId && task.subtasks) {
+        return {
+          ...task,
+          subtasks: task.subtasks.map(st => 
+            st.id === subtaskId ? { ...st, completed: !st.completed } : st
+          )
+        };
+      }
+      return task;
+    }));
+  };
+
+  const deleteSubtask = (taskId, subtaskId) => {
+    setTasks(prevTasks => prevTasks.map(task => {
+      if (task.id === taskId && task.subtasks) {
+        return {
+          ...task,
+          subtasks: task.subtasks.filter(st => st.id !== subtaskId)
+        };
+      }
+      return task;
+    }));
+  };
+
+  // Task template functions
+  const saveAsTemplate = (task) => {
+    const template = {
+      id: Date.now(),
+      name: task.text,
+      type: task.type,
+      size: task.size,
+      organization: task.organization,
+      priority: task.priority,
+      tags: task.tags || [],
+      scheduledTime: task.scheduledTime,
+      recurrence: task.recurrence,
+      customDays: task.customDays,
+      autoComplete: task.autoComplete,
+      durationMinutes: task.durationMinutes,
+      createdAt: new Date().toISOString()
+    };
+    const updatedTemplates = [...taskTemplates, template];
+    setTaskTemplates(updatedTemplates);
+    localStorage.setItem('taskTemplates', JSON.stringify(updatedTemplates));
+  };
+
+  const createFromTemplate = (template) => {
+    const sizeData = TASK_SIZES.find(s => s.value === template.size);
+    const task = {
+      id: Date.now(),
+      text: template.name,
+      type: template.type,
+      size: template.size,
+      organization: template.organization,
+      priority: template.priority,
+      tags: [...(template.tags || [])],
+      notes: '',
+      estimatedHours: sizeData?.hours || 2,
+      scheduledTime: template.scheduledTime || null,
+      recurrence: template.recurrence || 'none',
+      customDays: template.customDays || null,
+      lastRecurrence: template.recurrence && template.recurrence !== 'none' ? new Date().toISOString() : null,
+      completed: false,
+      qualityRating: 'unrated',
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+      timeSpent: 0,
+      isTimerRunning: false,
+      timerStartedAt: null,
+      sessions: [],
+      autoComplete: template.autoComplete || false,
+      durationMinutes: template.durationMinutes || null,
+      subtasks: []
+    };
+    setTasks([task, ...tasks]);
+    setShowTemplateManager(false);
+  };
+
+  const deleteTemplate = (templateId) => {
+    const updatedTemplates = taskTemplates.filter(t => t.id !== templateId);
+    setTaskTemplates(updatedTemplates);
+    localStorage.setItem('taskTemplates', JSON.stringify(updatedTemplates));
+  };
+
   const getElapsedTime = (task) => {
     let totalSeconds = task.timeSpent || 0;
     if (task.isTimerRunning && task.timerStartedAt) {
@@ -2088,6 +2305,121 @@ export default function DailyTaskManager() {
         ? 'bg-gradient-to-br from-gray-900 to-gray-800' 
         : 'bg-gradient-to-br from-blue-50 to-indigo-100'
     }`}>
+      {/* Focus Mode Overlay */}
+      {focusMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 p-8">
+          <div className="w-full max-w-2xl">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-3xl font-bold text-white">🎯 Focus Mode</h2>
+              <button
+                onClick={() => setFocusMode(false)}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+              >
+                Exit Focus Mode
+              </button>
+            </div>
+            
+            {(() => {
+              const activeTask = tasks.find(t => t.isTimerRunning);
+              if (!activeTask) {
+                return (
+                  <div className="text-center py-20">
+                    <div className="text-6xl mb-6">🧘</div>
+                    <h3 className="text-2xl font-semibold text-white mb-4">No active task</h3>
+                    <p className="text-gray-400 mb-8">Start a timer on any task to enter focus mode</p>
+                    <button
+                      onClick={() => setFocusMode(false)}
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                    >
+                      Go Back to Tasks
+                    </button>
+                  </div>
+                );
+              }
+              
+              const elapsedTime = getElapsedTime(activeTask);
+              const typeInfo = getTaskTypeInfo(activeTask.type);
+              const TypeIcon = typeInfo.icon;
+              const orgInfo = getOrgInfo(activeTask.organization);
+              
+              return (
+                <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className={`p-4 rounded-xl bg-${typeInfo.color}-900`}>
+                      <TypeIcon className={`w-8 h-8 text-${typeInfo.color}-400`} />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-2xl font-bold text-white mb-1">{activeTask.text}</h3>
+                      <p className="text-gray-400">{orgInfo.label} • {typeInfo.label}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="text-center py-8">
+                    <div className="text-7xl font-mono font-bold text-green-400 mb-4">
+                      {formatTime(elapsedTime)}
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-green-400">
+                      <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
+                      <span className="text-lg font-medium">Timer Running</span>
+                    </div>
+                  </div>
+                  
+                  {/* Subtasks in Focus Mode */}
+                  {activeTask.subtasks && activeTask.subtasks.length > 0 && (
+                    <div className="border-t border-gray-700 pt-6 mt-6">
+                      <h4 className="text-sm font-semibold text-gray-400 mb-3">
+                        Subtasks ({activeTask.subtasks.filter(st => st.completed).length}/{activeTask.subtasks.length})
+                      </h4>
+                      <div className="space-y-2">
+                        {activeTask.subtasks.map(subtask => (
+                          <div key={subtask.id} className="flex items-center gap-3">
+                            <button
+                              onClick={() => toggleSubtask(activeTask.id, subtask.id)}
+                              className={subtask.completed ? 'text-green-500' : 'text-gray-500'}
+                            >
+                              {subtask.completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
+                            </button>
+                            <span className={`${subtask.completed ? 'line-through text-gray-500' : 'text-white'}`}>
+                              {subtask.text}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Notes in Focus Mode */}
+                  {activeTask.notes && (
+                    <div className="border-t border-gray-700 pt-6 mt-6">
+                      <h4 className="text-sm font-semibold text-gray-400 mb-2">📝 Notes</h4>
+                      <p className="text-gray-300 whitespace-pre-wrap">{activeTask.notes}</p>
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-4 mt-8">
+                    <button
+                      onClick={() => pauseTimer(activeTask.id)}
+                      className="flex-1 py-4 bg-yellow-600 hover:bg-yellow-700 text-white rounded-xl transition-colors font-semibold flex items-center justify-center gap-2"
+                    >
+                      <Pause className="w-5 h-5" /> Pause
+                    </button>
+                    <button
+                      onClick={() => {
+                        stopTimer(activeTask.id);
+                        setFocusMode(false);
+                      }}
+                      className="flex-1 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors font-semibold flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle2 className="w-5 h-5" /> Complete
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-6 pt-8">
@@ -2263,6 +2595,48 @@ export default function DailyTaskManager() {
               title="Keyboard shortcuts (?)"
             >
               ⌨️ Shortcuts
+            </button>
+            {/* Focus Mode Button */}
+            <button
+              onClick={() => setFocusMode(!focusMode)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                focusMode
+                  ? 'bg-purple-600 text-white'
+                  : darkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              title="Focus on active task only"
+            >
+              🎯 Focus
+            </button>
+            {/* Upcoming Tasks Button */}
+            <button
+              onClick={() => setShowUpcomingTasks(!showUpcomingTasks)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                showUpcomingTasks
+                  ? 'bg-blue-600 text-white'
+                  : darkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              title="View upcoming scheduled tasks"
+            >
+              📅 This Week
+            </button>
+            {/* Templates Button */}
+            <button
+              onClick={() => setShowTemplateManager(!showTemplateManager)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                showTemplateManager
+                  ? 'bg-green-600 text-white'
+                  : darkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              title="Task templates"
+            >
+              📝 Templates {taskTemplates.length > 0 && `(${taskTemplates.length})`}
             </button>
           </div>
 
@@ -3353,6 +3727,23 @@ export default function DailyTaskManager() {
                     )}
                   </div>
                 )}
+
+                {/* Start from next occurrence option */}
+                {newTaskRecurrence !== 'none' && (newTaskRecurrence === 'custom' || newTaskRecurrence === 'weekdays') && (
+                  <div className="mt-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newTaskStartFromNext}
+                        onChange={(e) => setNewTaskStartFromNext(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Start from next scheduled day (skip today if not a scheduled day)
+                      </span>
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
           </form>
@@ -3897,6 +4288,30 @@ export default function DailyTaskManager() {
                         📝
                       </button>
 
+                      {/* Save as Template Button */}
+                      <button
+                        onClick={() => saveAsTemplate(task)}
+                        className={`flex-shrink-0 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100 ${
+                          darkMode ? 'text-gray-500 hover:text-green-400 hover:bg-green-900' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                        }`}
+                        title="Save as template"
+                      >
+                        💾
+                      </button>
+
+                      {/* Skip Today Button - for recurring tasks */}
+                      {!task.completed && task.recurrence && task.recurrence !== 'none' && task.scheduledTime && !isTaskSkippedToday(task.id) && (
+                        <button
+                          onClick={() => skipTaskToday(task.id)}
+                          className={`flex-shrink-0 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100 ${
+                            darkMode ? 'text-gray-500 hover:text-orange-400 hover:bg-orange-900' : 'text-gray-400 hover:text-orange-600 hover:bg-orange-50'
+                          }`}
+                          title="Skip today (recurrence continues tomorrow)"
+                        >
+                          ⏭️
+                        </button>
+                      )}
+
                       {/* Quality Rating Button */}
                       {task.completed && (
                         <button
@@ -3982,6 +4397,74 @@ export default function DailyTaskManager() {
                         <div className={`text-xs mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                           Press Cmd/Ctrl + Enter to save, Esc to cancel
                         </div>
+                      </div>
+                    )}
+
+                    {/* Subtasks Section */}
+                    {!task.completed && (
+                      <div className={`mt-3 ${darkMode ? 'border-t border-gray-700' : 'border-t border-gray-200'} pt-3`}>
+                        <div 
+                          className="flex items-center gap-2 cursor-pointer"
+                          onClick={() => setExpandedSubtasks(prev => ({ ...prev, [task.id]: !prev[task.id] }))}
+                        >
+                          <span className={`text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            📋 Subtasks {task.subtasks && task.subtasks.length > 0 && 
+                              `(${task.subtasks.filter(st => st.completed).length}/${task.subtasks.length})`
+                            }
+                          </span>
+                          <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                            {expandedSubtasks[task.id] ? '▼' : '▶'}
+                          </span>
+                        </div>
+                        
+                        {expandedSubtasks[task.id] && (
+                          <div className="mt-2 space-y-2">
+                            {/* Existing Subtasks */}
+                            {task.subtasks && task.subtasks.map(subtask => (
+                              <div key={subtask.id} className="flex items-center gap-2 ml-4">
+                                <button
+                                  onClick={() => toggleSubtask(task.id, subtask.id)}
+                                  className={subtask.completed ? 'text-green-600' : darkMode ? 'text-gray-400' : 'text-gray-400'}
+                                >
+                                  {subtask.completed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                                </button>
+                                <span className={`text-sm flex-1 ${
+                                  subtask.completed 
+                                    ? 'line-through text-gray-400' 
+                                    : darkMode ? 'text-gray-300' : 'text-gray-700'
+                                }`}>
+                                  {subtask.text}
+                                </span>
+                                <button
+                                  onClick={() => deleteSubtask(task.id, subtask.id)}
+                                  className={`text-xs p-1 rounded hover:bg-red-50 dark:hover:bg-red-900 ${
+                                    darkMode ? 'text-gray-500 hover:text-red-400' : 'text-gray-400 hover:text-red-600'
+                                  }`}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                            
+                            {/* Add Subtask Input */}
+                            <div className="flex items-center gap-2 ml-4">
+                              <Plus className={`w-4 h-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                              <input
+                                type="text"
+                                placeholder="Add subtask..."
+                                className={`flex-1 text-sm px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                  darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'
+                                }`}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && e.target.value.trim()) {
+                                    addSubtask(task.id, e.target.value);
+                                    e.target.value = '';
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -4768,6 +5251,138 @@ export default function DailyTaskManager() {
                   <div>Long break: {POMODORO_SETTINGS.longBreak} min</div>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upcoming Tasks Panel */}
+        {showUpcomingTasks && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-lg shadow-xl max-w-3xl w-full p-6 max-h-[80vh] overflow-y-auto ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  📅 Upcoming Tasks - This Week
+                </h3>
+                <button
+                  onClick={() => setShowUpcomingTasks(false)}
+                  className={`${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {getUpcomingTasks().length === 0 ? (
+                <div className={`text-center py-12 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <div className="text-4xl mb-4">📭</div>
+                  <p>No recurring tasks scheduled for the upcoming week.</p>
+                  <p className="text-sm mt-2">Create tasks with recurrence patterns to see them here.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {getUpcomingTasks().map((day, index) => (
+                    <div key={index} className={`rounded-lg p-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <h4 className={`font-semibold text-lg mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        {day.date}
+                      </h4>
+                      <div className="space-y-2">
+                        {day.tasks.map(task => {
+                          const typeInfo = getTaskTypeInfo(task.type);
+                          const TypeIcon = typeInfo.icon;
+                          const orgInfo = getOrgInfo(task.organization);
+                          return (
+                            <div 
+                              key={task.id} 
+                              className={`flex items-center gap-3 p-3 rounded-lg ${darkMode ? 'bg-gray-600' : 'bg-white'} shadow-sm`}
+                            >
+                              <TypeIcon className={`w-5 h-5 text-${typeInfo.color}-500`} />
+                              <div className="flex-1">
+                                <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{task.text}</div>
+                                <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  {orgInfo.label} • {task.scheduledTime || 'No time set'}
+                                </div>
+                              </div>
+                              {task.recurrence === 'custom' && task.customDays && (
+                                <span className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-700'}`}>
+                                  {task.customDays.map(d => DAYS_OF_WEEK.find(day => day.value === d)?.label).join(', ')}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Template Manager Modal */}
+        {showTemplateManager && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-lg shadow-xl max-w-3xl w-full p-6 max-h-[80vh] overflow-y-auto ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  📝 Task Templates
+                </h3>
+                <button
+                  onClick={() => setShowTemplateManager(false)}
+                  className={`${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className={`mb-6 p-4 rounded-lg ${darkMode ? 'bg-blue-900 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
+                <div className={`text-sm ${darkMode ? 'text-blue-200' : 'text-blue-900'}`}>
+                  <strong>💡 Tip:</strong> Save frequently used tasks as templates. Click "Save as Template" on any task to add it here.
+                </div>
+              </div>
+
+              {taskTemplates.length === 0 ? (
+                <div className={`text-center py-12 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <div className="text-4xl mb-4">📋</div>
+                  <p>No templates saved yet.</p>
+                  <p className="text-sm mt-2">Click "Save as Template" on any task to create one.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {taskTemplates.map(template => {
+                    const typeInfo = getTaskTypeInfo(template.type);
+                    const TypeIcon = typeInfo.icon;
+                    const orgInfo = getOrgInfo(template.organization);
+                    return (
+                      <div 
+                        key={template.id} 
+                        className={`flex items-center gap-3 p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} hover:shadow-md transition-shadow`}
+                      >
+                        <TypeIcon className={`w-5 h-5 text-${typeInfo.color}-500`} />
+                        <div className="flex-1">
+                          <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>{template.name}</div>
+                          <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {typeInfo.label} • {orgInfo.label} • {template.priority}
+                            {template.scheduledTime && ` • ${template.scheduledTime}`}
+                            {template.recurrence && template.recurrence !== 'none' && ` • 🔄 ${template.recurrence}`}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => createFromTemplate(template)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                        >
+                          ➕ Create
+                        </button>
+                        <button
+                          onClick={() => deleteTemplate(template.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
