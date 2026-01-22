@@ -1491,9 +1491,10 @@ export default function DailyTaskManager() {
   };
 
   const getElapsedTime = (task) => {
-    let totalSeconds = task.timeSpent;
+    let totalSeconds = task.timeSpent || 0;
     if (task.isTimerRunning && task.timerStartedAt) {
-      const currentSession = Math.floor((currentTime - task.timerStartedAt) / 1000);
+      const startedAt = new Date(task.timerStartedAt).getTime();
+      const currentSession = Math.floor((currentTime - startedAt) / 1000);
       totalSeconds += currentSession;
     }
     return totalSeconds;
@@ -3518,6 +3519,10 @@ export default function DailyTaskManager() {
                                 ⏱️ {formatTime(task.timeSpent)}
                               </span>
                             )}
+                            {/* Date Badge */}
+                            <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                              📅 {new Date(task.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
                           </div>
                         </div>
 
@@ -3747,6 +3752,13 @@ export default function DailyTaskManager() {
                               }
                             </span>
                           )}
+
+                          {/* Date Badge */}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
+                            darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            📅 {new Date(task.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
                         </div>
                         
                         {/* Time Info */}
@@ -4132,6 +4144,10 @@ export default function DailyTaskManager() {
                                 {(task.timeSpent / 3600).toFixed(1)}h
                               </span>
                             )}
+                            {/* Completed Date */}
+                            <span className={`flex items-center gap-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              📅 {new Date(task.completedAt || task.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
                           </div>
                         </div>
                         <button
