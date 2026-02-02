@@ -312,6 +312,11 @@ export default function DailyTaskManager() {
     
     // Check for recurring tasks
     checkRecurringTasks();
+    
+    // Remove any duplicate recurring tasks
+    setTimeout(() => {
+      removeDuplicateRecurringTasks();
+    }, 500);
 
     // Calculate initial storage usage
     setTimeout(() => {
@@ -458,6 +463,8 @@ export default function DailyTaskManager() {
         setCurrentTime(Date.now());
         // Also check for recurring tasks when tab becomes visible
         checkRecurringTasks();
+        // Clean up duplicates
+        setTimeout(() => removeDuplicateRecurringTasks(), 500);
       }
     };
 
@@ -466,6 +473,7 @@ export default function DailyTaskManager() {
     // Also check recurring tasks every hour
     const recurringCheckInterval = setInterval(() => {
       checkRecurringTasks();
+      setTimeout(() => removeDuplicateRecurringTasks(), 500);
     }, 60 * 60 * 1000); // Every hour
     
     return () => {
@@ -767,6 +775,24 @@ export default function DailyTaskManager() {
       // Check if we already created a recurring instance today
       if (lastRecurDate.toDateString() === todayStr) return;
       
+      // IMPORTANT: Check if there's already an active recurring instance of this task created today
+      // This prevents duplicates when checkRecurringTasks is called multiple times
+      const hasActiveInstanceToday = tasks.some(t => {
+        if (t.id === task.id) return false; // Skip the original task itself
+        if (t.completed) return false; // Skip completed instances
+        
+        // Check if it's a recurring instance with the same text and recurrence pattern
+        const taskDate = new Date(t.createdAt);
+        const taskDateOnly = new Date(taskDate.getFullYear(), taskDate.getMonth(), taskDate.getDate());
+        
+        return t.text === task.text && 
+               t.recurrence === task.recurrence && 
+               t.organization === task.organization &&
+               taskDateOnly.toDateString() === todayStr;
+      });
+      
+      if (hasActiveInstanceToday) return; // Already have today's instance
+      
       const daysSince = Math.floor((today - lastRecurDate) / (1000 * 60 * 60 * 24));
 
       let shouldRecur = false;
@@ -823,6 +849,57 @@ export default function DailyTaskManager() {
       );
       // Add new recurring instance
       return [newTask, ...updated];
+    });
+  };
+
+  // Remove duplicate recurring tasks (same text, recurrence, org, created today, not completed)
+  const removeDuplicateRecurringTasks = () => {
+    const today = new Date();
+    const todayStr = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toDateString();
+    
+    setTasks(prevTasks => {
+      const seen = new Map(); // Key: text+recurrence+org, Value: task id to keep
+      const duplicateIds = new Set();
+      
+      prevTasks.forEach(task => {
+        // Only check active tasks created today with recurrence
+        if (task.completed || !task.recurrence || task.recurrence === 'none') return;
+        
+        const taskDate = new Date(task.createdAt);
+        const taskDateStr = new Date(taskDate.getFullYear(), taskDate.getMonth(), taskDate.getDate()).toDateString();
+        
+        if (taskDateStr !== todayStr) return;
+        
+        // Create unique key for this recurring task pattern
+        const key = `${task.text}|${task.recurrence}|${task.organization}`;
+        
+        if (seen.has(key)) {
+          // Found a duplicate - mark it for deletion
+          // Keep the one that was started (has time) or the first one
+          const existingTask = prevTasks.find(t => t.id === seen.get(key));
+          if (task.timeSpent > 0 || task.isTimerRunning) {
+            // This one has been worked on, keep it and remove the other
+            duplicateIds.add(seen.get(key));
+            seen.set(key, task.id);
+          } else if (existingTask && (existingTask.timeSpent > 0 || existingTask.isTimerRunning)) {
+            // Existing one has been worked on, remove this one
+            duplicateIds.add(task.id);
+          } else {
+            // Neither has been worked on, keep the first one (already in map)
+            duplicateIds.add(task.id);
+          }
+        } else {
+          seen.set(key, task.id);
+        }
+      });
+      
+      // Remove duplicates and return cleaned list
+      if (duplicateIds.size > 0) {
+        console.log(`Removed ${duplicateIds.size} duplicate recurring tasks`);
+        return prevTasks.filter(task => !duplicateIds.has(task.id));
+      }
+      
+      return prevTasks;
     });
   };
 
@@ -5545,6 +5622,20 @@ export default function DailyTaskManager() {
                 <div>
                   <h4 className="font-semibold text-gray-800 mb-3">Cleanup Options</h4>
                   
+                  {/* Remove Duplicate Recurring Tasks */}
+                  <button
+                    onClick={() => {
+                      removeDuplicateRecurringTasks();
+                      alert('Duplicate recurring tasks have been removed!');
+                    }}
+                    className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors mb-2"
+                  >
+                    🔄 Remove Duplicate Recurring Tasks
+                  </button>
+                  <p className="text-xs text-gray-600 mb-4">
+                    Removes duplicate standups/meetings created today. Keeps the one you've worked on.
+                  </p>
+
                   {/* Archive Completed */}
                   <button
                     onClick={manualArchiveCompleted}
