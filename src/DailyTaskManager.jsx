@@ -9,7 +9,9 @@ const TASK_TYPES = [
   { value: 'standup', label: 'Standup', icon: Users, color: 'amber', group: 'meetings' },
   { value: 'meeting', label: 'Meeting', icon: Users, color: 'orange', group: 'meetings' },
   { value: 'analysis', label: 'Analysis', icon: Target, color: 'indigo' },
-  { value: 'documentation', label: 'Documentation', icon: FileText, color: 'teal' }
+  { value: 'documentation', label: 'Documentation', icon: FileText, color: 'teal' },
+  { value: 'testing', label: 'Testing', icon: CheckCircle2, color: 'cyan' },
+  { value: 'demo', label: 'Demo', icon: Play, color: 'pink' }
 ];
 
 // Helper to check if task type is a meeting/standup
@@ -3673,6 +3675,9 @@ export default function DailyTaskManager() {
                         <option value={60}>1 hour</option>
                         <option value={90}>1.5 hours</option>
                         <option value={120}>2 hours</option>
+                        <option value={180}>3 hours</option>
+                        <option value={240}>4 hours</option>
+                        <option value={300}>5 hours</option>
                       </select>
                     </div>
                   )}
