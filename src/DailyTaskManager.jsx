@@ -580,20 +580,28 @@ export default function DailyTaskManager() {
         }
       });
 
-      // Auto-complete tasks that have been running for their specified duration
+      // Auto-complete tasks that have been running for their allocated time
       tasks.forEach(task => {
-        if (task.isTimerRunning && task.autoComplete && task.durationMinutes && task.timerStartedAt) {
+        if (task.isTimerRunning && task.timerStartedAt && !task.completed) {
           const startedAt = new Date(task.timerStartedAt);
-          const elapsedMinutes = (now - startedAt) / (1000 * 60);
+          const elapsedMilliseconds = now - startedAt;
+          const elapsedMinutes = elapsedMilliseconds / (1000 * 60);
+          const elapsedHours = elapsedMilliseconds / (1000 * 60 * 60);
+          
+          // Calculate allocated time: use durationMinutes if available (for autoComplete tasks), otherwise use estimatedHours
+          const allocatedTimeMinutes = task.durationMinutes || (task.estimatedHours * 60);
+          const allocatedTimeHours = task.durationMinutes ? task.durationMinutes / 60 : task.estimatedHours;
           
           // Check if we haven't already auto-completed this task today
           const lastAutoComplete = localStorage.getItem(`autoComplete_${task.id}`);
           const todayDate = now.toDateString();
           const alreadyCompletedToday = lastAutoComplete === todayDate;
           
-          if (elapsedMinutes >= task.durationMinutes && !alreadyCompletedToday && !task.completed) {
-            // Calculate actual time spent
-            const actualTimeSpent = task.durationMinutes * 60; // Convert to seconds
+          // Auto-complete if elapsed time exceeds allocated time
+          if (elapsedMinutes >= allocatedTimeMinutes && !alreadyCompletedToday) {
+            // Calculate actual time spent (time already accumulated + current session)
+            const currentSessionTime = Math.floor(elapsedMilliseconds / 1000); // seconds
+            const actualTimeSpent = (task.timeSpent || 0) + currentSessionTime;
             
             // Auto-complete the task!
             setTasks(prevTasks => prevTasks.map(t => 
@@ -603,11 +611,11 @@ export default function DailyTaskManager() {
                     isTimerRunning: false, 
                     completed: true,
                     completedAt: new Date().toISOString(),
-                    timeSpent: (t.timeSpent || 0) + actualTimeSpent,
+                    timeSpent: actualTimeSpent,
                     sessions: [...(t.sessions || []), {
                       startedAt: t.timerStartedAt,
                       endedAt: new Date().toISOString(),
-                      duration: actualTimeSpent
+                      duration: currentSessionTime
                     }]
                   }
                 : t
@@ -618,9 +626,12 @@ export default function DailyTaskManager() {
             
             // Show notification
             const taskTypeInfo = getTaskTypeInfo(task.type);
+            const displayDuration = task.durationMinutes 
+              ? `${task.durationMinutes} minutes`
+              : `${allocatedTimeHours} ${allocatedTimeHours === 1 ? 'hour' : 'hours'}`;
             showNotification(
-              `✅ ${taskTypeInfo.label} Completed`,
-              `"${task.text}" was automatically completed after ${task.durationMinutes} minutes`,
+              `✅ ${taskTypeInfo.label} Auto-Completed`,
+              `"${task.text}" was automatically completed after ${displayDuration} of allocated time`,
               'completed',
               task.id
             );
