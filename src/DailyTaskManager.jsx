@@ -188,6 +188,8 @@ export default function DailyTaskManager() {
   const [activePomodoroTask, setActivePomodoroTask] = useState(null);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [editingTaskNotes, setEditingTaskNotes] = useState(null);
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editingTaskText, setEditingTaskText] = useState('');
   const [showBreakMenu, setShowBreakMenu] = useState(false);
   const [activeBreak, setActiveBreak] = useState(null); // { type, startedAt }
   const [todayBreaks, setTodayBreaks] = useState([]); // Array of completed breaks
@@ -360,6 +362,7 @@ export default function DailyTaskManager() {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
         if (e.key === 'Escape') {
           e.target.blur(); // Close input on Escape
+          cancelEditingTask();
         }
         return;
       }
@@ -1466,6 +1469,28 @@ export default function DailyTaskManager() {
       task.id === taskId ? { ...task, notes: notes } : task
     ));
     setEditingTaskNotes(null);
+  };
+
+  const updateTaskText = (taskId, newText) => {
+    if (!newText.trim()) {
+      alert('Task text cannot be empty');
+      return;
+    }
+    setTasks(tasks.map(task => 
+      task.id === taskId ? { ...task, text: newText.trim() } : task
+    ));
+    setEditingTaskId(null);
+    setEditingTaskText('');
+  };
+
+  const startEditingTask = (taskId, currentText) => {
+    setEditingTaskId(taskId);
+    setEditingTaskText(currentText);
+  };
+
+  const cancelEditingTask = () => {
+    setEditingTaskId(null);
+    setEditingTaskText('');
   };
 
   const formatPomodoroTime = (seconds) => {
@@ -3977,9 +4002,42 @@ export default function DailyTaskManager() {
                         </button>
                         
                         <div className="flex-1 min-w-0">
-                          <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                            {task.type === 'standup' ? '🧍' : '👥'} {task.text}
-                          </div>
+                          {editingTaskId === task.id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={editingTaskText}
+                                onChange={(e) => setEditingTaskText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    updateTaskText(task.id, editingTaskText);
+                                  } else if (e.key === 'Escape') {
+                                    cancelEditingTask();
+                                  }
+                                }}
+                                className={`flex-1 px-3 py-1 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => updateTaskText(task.id, editingTaskText)}
+                                className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                                title="Save"
+                              >
+                                <Save className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={cancelEditingTask}
+                                className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                                title="Cancel"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {task.type === 'standup' ? '🧍' : '👥'} {task.text}
+                            </div>
+                          )}
                           <div className="flex flex-wrap items-center gap-2 mt-1">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
                               task.type === 'standup' 
@@ -4047,6 +4105,15 @@ export default function DailyTaskManager() {
                               </button>
                             </>
                           )}
+                          <button
+                            onClick={() => startEditingTask(task.id, task.text)}
+                            className={`flex-shrink-0 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100 ${
+                              darkMode ? 'text-gray-500 hover:text-blue-400 hover:bg-gray-700' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+                            }`}
+                            title="Edit Task"
+                          >
+                            <Edit2 className="w-5 h-5" />
+                          </button>
                           <button
                             onClick={() => deleteTask(task.id)}
                             className={`flex-shrink-0 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100 ${
@@ -4138,17 +4205,50 @@ export default function DailyTaskManager() {
                       <div className="flex-1 min-w-0">
                         {/* Task Title and Badges */}
                         <div className="flex items-start gap-2 mb-2 flex-wrap">
-                          <span
-                            className={`text-lg ${
-                              task.completed
-                                ? darkMode ? 'line-through text-gray-500' : 'line-through text-gray-400'
-                                : darkMode ? 'text-white' : 'text-gray-800'
-                            }`}
-                          >
-                            {task.text}
-                          </span>
+                          {editingTaskId === task.id ? (
+                            <div className="flex items-center gap-2 flex-1">
+                              <input
+                                type="text"
+                                value={editingTaskText}
+                                onChange={(e) => setEditingTaskText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    updateTaskText(task.id, editingTaskText);
+                                  } else if (e.key === 'Escape') {
+                                    cancelEditingTask();
+                                  }
+                                }}
+                                className={`flex-1 px-3 py-1 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => updateTaskText(task.id, editingTaskText)}
+                                className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                                title="Save"
+                              >
+                                <Save className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={cancelEditingTask}
+                                className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                                title="Cancel"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span
+                              className={`text-lg ${
+                                task.completed
+                                  ? darkMode ? 'line-through text-gray-500' : 'line-through text-gray-400'
+                                  : darkMode ? 'text-white' : 'text-gray-800'
+                              }`}
+                            >
+                              {task.text}
+                            </span>
+                          )}
                           {/* Status Badge: In Progress or Not Started */}
-                          {!task.completed && (
+                          {!task.completed && editingTaskId !== task.id && (
                             <>
                               {(task.isTimerRunning || task.timeSpent > 0) ? (
                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${
@@ -4390,6 +4490,17 @@ export default function DailyTaskManager() {
                         title="Save as template"
                       >
                         💾
+                      </button>
+
+                      {/* Edit Task Button */}
+                      <button
+                        onClick={() => startEditingTask(task.id, task.text)}
+                        className={`flex-shrink-0 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100 ${
+                          darkMode ? 'text-gray-500 hover:text-blue-400 hover:bg-blue-900' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+                        }`}
+                        title="Edit task text"
+                      >
+                        <Edit2 className="w-5 h-5" />
                       </button>
 
                       {/* Skip Today Button - for recurring tasks */}
