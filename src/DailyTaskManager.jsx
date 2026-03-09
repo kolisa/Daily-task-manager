@@ -1,55 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, Circle, Trash2, Plus, TrendingUp, Play, Pause, Square, Clock, Bell, AlertCircle, Code, Bug, Wrench, Briefcase, Coffee, BookOpen, Target, Award, TrendingDown, Zap, Users, Edit2, Save, X, FileText } from 'lucide-react';
-
-const TASK_TYPES = [
-  { value: 'feature', label: 'Feature', icon: Code, color: 'blue' },
-  { value: 'bug', label: 'Bug Fix', icon: Bug, color: 'red' },
-  { value: 'support', label: 'Support', icon: Wrench, color: 'green' },
-  { value: 'learning', label: 'Learning', icon: BookOpen, color: 'purple' },
-  { value: 'standup', label: 'Standup', icon: Users, color: 'amber', group: 'meetings' },
-  { value: 'meeting', label: 'Meeting', icon: Users, color: 'orange', group: 'meetings' },
-  { value: 'analysis', label: 'Analysis', icon: Target, color: 'indigo' },
-  { value: 'documentation', label: 'Documentation', icon: FileText, color: 'teal' },
-  { value: 'testing', label: 'Testing', icon: CheckCircle2, color: 'cyan' },
-  { value: 'demo', label: 'Demo', icon: Play, color: 'pink' }
-];
-
-// Helper to check if task type is a meeting/standup
-const isMeetingType = (type) => ['standup', 'meeting'].includes(type);
-
-const TASK_SIZES = [
-  { value: 'xs', label: 'XS (< 1h)', hours: 0.5 },
-  { value: 's', label: 'S (1-2h)', hours: 1.5 },
-  { value: 'm', label: 'M (2-4h)', hours: 3 },
-  { value: 'l', label: 'L (4-8h)', hours: 6 },
-  { value: 'xl', label: 'XL (1-2 days)', hours: 12 },
-  { value: 'xxl', label: 'XXL (2+ days)', hours: 16 }
-];
-
-const QUALITY_RATINGS = [
-  { value: 'excellent', label: 'Excellent - First try, no rework', score: 5 },
-  { value: 'good', label: 'Good - Minor revisions', score: 4 },
-  { value: 'average', label: 'Average - Some rework needed', score: 3 },
-  { value: 'poor', label: 'Poor - Significant rework', score: 2 },
-  { value: 'unrated', label: 'Not yet rated', score: 0 }
-];
-
-// Complexity points for task sizes (story points style)
-const SIZE_POINTS = {
-  xs: 1,
-  s: 2,
-  m: 3,
-  l: 5,
-  xl: 8,
-  xxl: 13
-};
-
-// Priority multipliers
-const PRIORITY_MULTIPLIERS = {
-  high: 1.5,
-  medium: 1.0,
-  low: 0.75
-};
+import {
+  TASK_TYPES,
+  TASK_SIZES,
+  SIZE_POINTS,
+  PRIORITY_LEVELS,
+  PRIORITY_MULTIPLIERS,
+  QUALITY_RATINGS,
+  RECURRENCE_PATTERNS,
+  DAYS_OF_WEEK,
+  MEETING_TEMPLATES,
+  DEFAULT_ORGANIZATIONS,
+  isMeetingType,
+  getTaskTypeInfo,
+  getTaskSizeInfo,
+} from './taskTypes.js';
 
 // Break types for logging time away
 const BREAK_TYPES = [
@@ -62,35 +27,6 @@ const BREAK_TYPES = [
   { value: 'other', label: '⏸️ Other', duration: 15, color: 'gray' }
 ];
 
-const DEFAULT_ORGANIZATIONS = [
-  { value: 'webafrica', label: 'Web Africa', icon: Briefcase, color: 'blue', type: 'work' },
-  { value: 'lexisnexis', label: 'LexisNexis', icon: Briefcase, color: 'indigo', type: 'work' },
-  { value: 'tut', label: 'TUT (Tshwane University of Technology)', icon: Briefcase, color: 'cyan', type: 'work' },
-  { value: 'personal-dev', label: 'Personal Development', icon: BookOpen, color: 'green', type: 'personal' },
-  { value: 'bhukuveni', label: 'Bhukuveni', icon: Coffee, color: 'purple', type: 'personal' },
-  { value: 'khoi', label: 'Khoi', icon: Coffee, color: 'pink', type: 'personal' },
-  { value: 'nowmail', label: 'Nowmail', icon: Coffee, color: 'emerald', type: 'personal' }
-];
-
-const MEETING_TEMPLATES = [
-  { label: 'Quick Standup (15 min)', duration: 0.25, time: '09:00', autoComplete: true, durationMinutes: 15, type: 'standup' },
-  { label: 'Standard Standup (30 min)', duration: 0.5, time: '09:30', autoComplete: true, durationMinutes: 30, type: 'standup' },
-  { label: 'Team Sync (15 min)', duration: 0.25, time: '14:00', autoComplete: true, durationMinutes: 15, type: 'standup' },
-  { label: 'Team Sync (30 min)', duration: 0.5, time: '14:30', autoComplete: true, durationMinutes: 30, type: 'standup' },
-  { label: 'Sprint Planning', duration: 2, time: '10:00', autoComplete: false, durationMinutes: 120, type: 'meeting' },
-  { label: 'Sprint Review', duration: 1, time: '15:00', autoComplete: false, durationMinutes: 60, type: 'meeting' },
-  { label: 'Sprint Retrospective', duration: 1, time: '16:00', autoComplete: false, durationMinutes: 60, type: 'meeting' },
-  { label: 'Points Confirmation', duration: 1, time: '11:00', autoComplete: false, durationMinutes: 60, type: 'meeting' },
-  { label: 'Tech Review', duration: 1, time: '13:00', autoComplete: false, durationMinutes: 60, type: 'meeting' },
-  { label: '1-on-1 (30 min)', duration: 0.5, time: '16:30', autoComplete: true, durationMinutes: 30, type: 'meeting' }
-];
-
-const PRIORITY_LEVELS = [
-  { value: 'high', label: 'High Priority', color: 'red', icon: '🔴' },
-  { value: 'medium', label: 'Medium Priority', color: 'yellow', icon: '🟡' },
-  { value: 'low', label: 'Low Priority', color: 'green', icon: '🟢' }
-];
-
 const DEFAULT_TAGS = [
   { value: 'urgent', label: 'Urgent', color: 'red' },
   { value: 'blocked', label: 'Blocked', color: 'orange' },
@@ -98,26 +34,6 @@ const DEFAULT_TAGS = [
   { value: 'client-facing', label: 'Client Facing', color: 'purple' },
   { value: 'technical-debt', label: 'Technical Debt', color: 'gray' },
   { value: 'documentation', label: 'Documentation', color: 'green' }
-];
-
-const RECURRENCE_PATTERNS = [
-  { value: 'none', label: 'No Recurrence' },
-  { value: 'daily', label: 'Daily (Every day)' },
-  { value: 'weekdays', label: 'Weekdays (Mon-Fri)' },
-  { value: 'custom', label: 'Custom Days (Select specific days)' },
-  { value: 'weekly', label: 'Weekly (Same day each week)' },
-  { value: 'biweekly', label: 'Bi-weekly (Every 2 weeks)' },
-  { value: 'monthly', label: 'Monthly (Same day each month)' }
-];
-
-const DAYS_OF_WEEK = [
-  { value: 1, label: 'Mon', full: 'Monday' },
-  { value: 2, label: 'Tue', full: 'Tuesday' },
-  { value: 3, label: 'Wed', full: 'Wednesday' },
-  { value: 4, label: 'Thu', full: 'Thursday' },
-  { value: 5, label: 'Fri', full: 'Friday' },
-  { value: 6, label: 'Sat', full: 'Saturday' },
-  { value: 0, label: 'Sun', full: 'Sunday' }
 ];
 
 const KEYBOARD_SHORTCUTS = [
@@ -314,13 +230,15 @@ export default function DailyTaskManager() {
     // Check for weekly cleanup
     checkWeeklyCleanup();
     
-    // Check for recurring tasks
-    checkRecurringTasks();
-    
-    // Remove any duplicate recurring tasks
+    // Auto-complete past meetings/standups/recurring tasks and clean up duplicates.
+    // Use a small delay so the tasks state is fully populated from localStorage first.
     setTimeout(() => {
-      removeDuplicateRecurringTasks();
-    }, 500);
+      autoCompletePastTasks();
+      checkRecurringTasks();
+      setTimeout(() => {
+        removeDuplicateRecurringTasks();
+      }, 300);
+    }, 300);
 
     // Calculate initial storage usage
     setTimeout(() => {
@@ -466,9 +384,10 @@ export default function DailyTaskManager() {
       if (!document.hidden) {
         // Tab is now visible - force immediate update
         setCurrentTime(Date.now());
-        // Also check for recurring tasks when tab becomes visible
+        // Auto-complete any past meetings/standups/recurring tasks first,
+        // then spawn new recurring instances, then de-duplicate.
+        autoCompletePastTasks();
         checkRecurringTasks();
-        // Clean up duplicates
         setTimeout(() => removeDuplicateRecurringTasks(), 500);
       }
     };
@@ -477,6 +396,7 @@ export default function DailyTaskManager() {
     
     // Also check recurring tasks every hour
     const recurringCheckInterval = setInterval(() => {
+      autoCompletePastTasks();
       checkRecurringTasks();
       setTimeout(() => removeDuplicateRecurringTasks(), 500);
     }, 60 * 60 * 1000); // Every hour
@@ -774,6 +694,71 @@ export default function DailyTaskManager() {
   };
 
   // Recurring Tasks Functions
+  // Auto-complete any past recurring/meeting/standup tasks that were never manually closed.
+  // Handles the case where the browser was closed/reopened on a different day, leaving
+  // old incomplete instances and causing visible duplicates.
+  const autoCompletePastTasks = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStr = today.toDateString();
+
+    setTasks(prevTasks => {
+      let changed = false;
+      const updated = prevTasks.map(task => {
+        if (task.completed) return task;
+
+        const taskDate = new Date(task.createdAt);
+        const taskDateOnly = new Date(taskDate.getFullYear(), taskDate.getMonth(), taskDate.getDate());
+        const isFromPreviousDay = taskDateOnly < today;
+
+        // Auto-complete incomplete recurring or meeting/standup tasks from a previous day
+        if (
+          isFromPreviousDay &&
+          ((task.recurrence && task.recurrence !== 'none') || isMeetingType(task.type))
+        ) {
+          changed = true;
+          return {
+            ...task,
+            completed: true,
+            // Mark as completed at end of that day so it doesn't clutter today's view
+            completedAt: new Date(taskDateOnly.getTime() + 23 * 60 * 60 * 1000).toISOString(),
+            isTimerRunning: false,
+            autoCompletedPast: true
+          };
+        }
+
+        // Auto-complete same-day meetings/standups whose scheduled end time has passed
+        if (
+          taskDateOnly.toDateString() === todayStr &&
+          isMeetingType(task.type) &&
+          task.scheduledTime
+        ) {
+          const [schedHours, schedMins] = task.scheduledTime.split(':').map(Number);
+          const schedEnd = new Date(today);
+          schedEnd.setHours(schedHours, schedMins, 0, 0);
+          const durationMs =
+            (task.durationMinutes || Math.round((task.estimatedHours || 0.5) * 60)) * 60 * 1000;
+          schedEnd.setTime(schedEnd.getTime() + durationMs);
+
+          if (now > schedEnd) {
+            changed = true;
+            return {
+              ...task,
+              completed: true,
+              completedAt: schedEnd.toISOString(),
+              isTimerRunning: false,
+              autoCompletedPast: true
+            };
+          }
+        }
+
+        return task;
+      });
+
+      return changed ? updated : prevTasks;
+    });
+  };
+
   const checkRecurringTasks = () => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -868,53 +853,58 @@ export default function DailyTaskManager() {
     });
   };
 
-  // Remove duplicate recurring tasks (same text, recurrence, org, created today, not completed)
+  // Remove duplicate recurring/meeting/standup tasks (same text + recurrence + org, incomplete).
+  // Handles duplicates created across multiple days (e.g. from multiple browser opens).
+  // Keeps the instance with the most time logged; ties are broken by newest createdAt.
   const removeDuplicateRecurringTasks = () => {
-    const today = new Date();
-    const todayStr = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toDateString();
-    
     setTasks(prevTasks => {
-      const seen = new Map(); // Key: text+recurrence+org, Value: task id to keep
-      const duplicateIds = new Set();
-      
-      prevTasks.forEach(task => {
-        // Only check active tasks created today with recurrence
-        if (task.completed || !task.recurrence || task.recurrence === 'none') return;
-        
-        const taskDate = new Date(task.createdAt);
-        const taskDateStr = new Date(taskDate.getFullYear(), taskDate.getMonth(), taskDate.getDate()).toDateString();
-        
-        if (taskDateStr !== todayStr) return;
-        
-        // Create unique key for this recurring task pattern
+      // Collect all incomplete recurring / meeting / standup tasks
+      const candidates = prevTasks.filter(
+        t => !t.completed && (
+          (t.recurrence && t.recurrence !== 'none') || isMeetingType(t.type)
+        )
+      );
+
+      // Group by identity key
+      const groups = new Map();
+      candidates.forEach(task => {
         const key = `${task.text}|${task.recurrence}|${task.organization}`;
-        
-        if (seen.has(key)) {
-          // Found a duplicate - mark it for deletion
-          // Keep the one that was started (has time) or the first one
-          const existingTask = prevTasks.find(t => t.id === seen.get(key));
-          if (task.timeSpent > 0 || task.isTimerRunning) {
-            // This one has been worked on, keep it and remove the other
-            duplicateIds.add(seen.get(key));
-            seen.set(key, task.id);
-          } else if (existingTask && (existingTask.timeSpent > 0 || existingTask.isTimerRunning)) {
-            // Existing one has been worked on, remove this one
-            duplicateIds.add(task.id);
-          } else {
-            // Neither has been worked on, keep the first one (already in map)
-            duplicateIds.add(task.id);
-          }
-        } else {
-          seen.set(key, task.id);
-        }
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(task);
       });
-      
-      // Remove duplicates and return cleaned list
-      if (duplicateIds.size > 0) {
-        console.log(`Removed ${duplicateIds.size} duplicate recurring tasks`);
-        return prevTasks.filter(task => !duplicateIds.has(task.id));
+
+      const toComplete = new Set();
+
+      groups.forEach(group => {
+        if (group.length <= 1) return;
+
+        // Pick the best one to keep:
+        // 1. Task that is currently running takes priority
+        // 2. Task with most time spent
+        // 3. Newest createdAt as tiebreaker
+        const best = group.reduce((a, b) => {
+          if (a.isTimerRunning && !b.isTimerRunning) return a;
+          if (!a.isTimerRunning && b.isTimerRunning) return b;
+          if ((a.timeSpent || 0) !== (b.timeSpent || 0))
+            return (a.timeSpent || 0) > (b.timeSpent || 0) ? a : b;
+          return new Date(a.createdAt) > new Date(b.createdAt) ? a : b;
+        });
+
+        group.forEach(t => {
+          if (t.id !== best.id) toComplete.add(t.id);
+        });
+      });
+
+      if (toComplete.size > 0) {
+        console.log(`Auto-completing ${toComplete.size} duplicate recurring/meeting tasks`);
+        const now = new Date().toISOString();
+        return prevTasks.map(task =>
+          toComplete.has(task.id)
+            ? { ...task, completed: true, completedAt: now, autoCompletedDuplicate: true }
+            : task
+        );
       }
-      
+
       return prevTasks;
     });
   };
@@ -1862,14 +1852,6 @@ export default function DailyTaskManager() {
       percentage: percentageUsed,
       overBudget: actualHours > estimatedHours
     };
-  };
-
-  const getTaskTypeInfo = (typeValue) => {
-    return TASK_TYPES.find(t => t.value === typeValue) || TASK_TYPES[0];
-  };
-
-  const getTaskSizeInfo = (sizeValue) => {
-    return TASK_SIZES.find(s => s.value === sizeValue) || TASK_SIZES[2];
   };
 
   const getOrgInfo = (orgValue) => {
